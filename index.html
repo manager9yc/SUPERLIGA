@@ -2527,10 +2527,7 @@ function setRankFilter(key, btn) {
 }
 
 function _renderRankingPorSemana(domStr, sabStr) {
-  let fonte = dashAllDados;
-  if (!fonte.length) {
-    try { const tc = localStorage.getItem('todosCache'); if (tc) fonte = normalizarDatasArray(JSON.parse(tc)); } catch(e) {}
-  }
+  const fonte = dashAllDados.length ? dashAllDados : (window._rankingCache || []);
   if (!fonte.length) { showToast('📊 Carrega o ranking primeiro'); return; }
   const agg = {};
   fonte.forEach(d => {
