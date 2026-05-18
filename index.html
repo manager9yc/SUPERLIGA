@@ -2502,7 +2502,7 @@ function setRankFilter(key, btn) {
       try {
         const cached = localStorage.getItem('todosCache');
         const cachedTime = parseInt(localStorage.getItem('todosCacheTime')||'0');
-        if (cached && (Date.now() - cachedTime) < 30*60*1000) {
+        if (cached) {
           dashAllDados = normalizarDatasArray(JSON.parse(cached));
           _renderRankingPorSemana(dom, sab);
           return; // render imediato, não espera rede
@@ -2527,8 +2527,16 @@ function setRankFilter(key, btn) {
 }
 
 function _renderRankingPorSemana(domStr, sabStr) {
-  const fonte = dashAllDados.length ? dashAllDados : (window._rankingCache || []);
-  if (!fonte.length) { showToast('📊 Carrega o ranking primeiro'); return; }
+  // Se dashAllDados vazio, tentar carregar todosCache do localStorage
+  if (!dashAllDados.length) {
+    try {
+      const tc = localStorage.getItem('todosCache');
+      if (tc) dashAllDados = normalizarDatasArray(JSON.parse(tc));
+    } catch(e) {}
+  }
+  // _rankingCache é agregado por nome (sem datas), não serve para filtro semanal
+  const fonte = dashAllDados.length ? dashAllDados : [];
+  if (!fonte.length) { showToast('📊 A carregar dados...'); carregarRanking(); return; }
   const agg = {};
   fonte.forEach(d => {
     const data = (d.data || '').slice(0,10);
