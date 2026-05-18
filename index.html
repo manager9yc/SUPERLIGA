@@ -2502,7 +2502,7 @@ function setRankFilter(key, btn) {
       try {
         const cached = localStorage.getItem('todosCache');
         const cachedTime = parseInt(localStorage.getItem('todosCacheTime')||'0');
-        if (cached && (Date.now() - cachedTime) < 30*60*1000) {
+        if (cached) {
           dashAllDados = normalizarDatasArray(JSON.parse(cached));
           _renderRankingPorSemana(dom, sab);
           return; // render imediato, não espera rede
