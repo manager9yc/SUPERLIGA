@@ -2527,10 +2527,10 @@ function setRankFilter(key, btn) {
 }
 
 function _renderRankingPorSemana(domStr, sabStr) {
-  if (!dashAllDados.length) {
-    try { const tc = localStorage.getItem('todosCache'); if (tc) dashAllDados = normalizarDatasArray(JSON.parse(tc)); } catch(e) {}
+  let fonte = dashAllDados;
+  if (!fonte.length) {
+    try { const tc = localStorage.getItem('todosCache'); if (tc) fonte = normalizarDatasArray(JSON.parse(tc)); } catch(e) {}
   }
-  const fonte = dashAllDados.length ? dashAllDados : [];
   if (!fonte.length) { showToast('📊 Carrega o ranking primeiro'); return; }
   const agg = {};
   fonte.forEach(d => {
