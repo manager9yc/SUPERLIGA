@@ -2528,6 +2528,11 @@ function setRankFilter(key, btn) {
 
 function _renderRankingPorSemana(domStr, sabStr) {
   const fonte = dashAllDados.length ? dashAllDados : (window._rankingCache || []);
+  // DEBUG VISIBLE
+  const rm2 = document.getElementById('rankMain');
+  const sample = fonte.slice(0,3).map(d=>JSON.stringify({nome:d.nome,data:d.data,onlines:d.onlines})).join('<br>');
+  if (rm2) rm2.innerHTML = '<div style="padding:16px;background:#1a1a1a;color:#C9A84C;font-size:11px;font-family:monospace;white-space:pre-wrap">DEBUG<br>dashAllDados.length=' + dashAllDados.length + '<br>_rankingCache.length=' + (window._rankingCache||[]).length + '<br>fonte.length=' + fonte.length + '<br>domStr=' + domStr + '<br>sabStr=' + sabStr + '<br>SAMPLE:<br>' + sample + '</div>';
+  setTimeout(()=>{
   if (!fonte.length) { showToast('📊 Carrega o ranking primeiro'); return; }
   const agg = {};
   fonte.forEach(d => {
@@ -2537,9 +2542,13 @@ function _renderRankingPorSemana(domStr, sabStr) {
     categorias.forEach(cat => { agg[d.nome][cat.key] += (d[cat.key]||0); });
   });
   const dadosSemana = Object.values(agg);
+  // DEBUG: show count
+  const rm3 = document.getElementById('rankMain');
+  if (rm3) { const prev = rm3.innerHTML; rm3.innerHTML = '<div style="padding:8px 16px;background:#1a1a1a;color:#C9A84C;font-size:11px;font-family:monospace">DEBUG: dadosSemana.length=' + dadosSemana.length + ', agg keys=' + JSON.stringify(Object.keys(agg)) + '</div>' + prev; }
   renderRanking(dadosSemana, true);
   // Guardar em localStorage para a próxima vez
   try { localStorage.setItem('todosCache', JSON.stringify(fonte)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
+  }, 100); // end setTimeout debug
 }
 
 let _rankingIsSemana = false;
