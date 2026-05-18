@@ -2516,57 +2516,62 @@ function setRankFilter(key, btn) {
   if (key === 'mes') {
     document.getElementById('rankFilterMes').classList.add('active');
     if (window._rankingCache) renderRanking(window._rankingCache);
-  } else {
-    const chip = document.querySelector(`[data-dom="${key.replace('semana_','')}"]`);
-    if (!chip) return;
-    const dom = chip.dataset.dom;
-    const sab = chip.dataset.sab;
-    // Se já há dados em memória, renderiza imediatamente
-    if (dashAllDados.length) {
-      _renderRankingPorSemana(dom, sab);
+    return;
+  }
+  const chip = document.querySelector(`[data-dom="${key.replace('semana_','')}"]`);
+  if (!chip) return;
+  const dom = chip.dataset.dom;
+  const sab = chip.dataset.sab;
+  _carregarSemana(dom, sab, key);
+}
+
+async function _carregarSemana(dom, sab, key) {
+  // Se já há dados válidos em memória, usar diretamente
+  if (dashAllDados.length) {
+    const temDadosSemana = dashAllDados.some(d => {
+      const dt = (d.data || '').slice(0,10);
+      return dt >= dom && dt <= sab;
+    });
+    if (temDadosSemana) { _renderRankingPorSemana(dom, sab); return; }
+  }
+  // Mostrar spinner e ir buscar dados frescos ao Sheets
+  const rm = document.getElementById('rankMain');
+  if (rm) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">A CARREGAR...</div>';
+  try {
+    const url = SHEETS_URL + '?action=getTodos';
+    const proxy = 'https://corsproxy.io/?' + encodeURIComponent(url);
+    const td = await Promise.race([
+      fetch(url, {cache:'no-store'}).then(r=>r.json()),
+      fetch(proxy, {cache:'no-store'}).then(r=>r.json()),
+      new Promise((_,rej) => setTimeout(()=>rej('timeout'), 10000))
+    ]);
+    if (Array.isArray(td) && td.length) {
+      dashAllDados = normalizarDatasArray(td);
+      window.dashAllDados = dashAllDados;
+      try { localStorage.setItem('todosCache', JSON.stringify(td)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
+      if (_rankFilter === key) _renderRankingPorSemana(dom, sab);
     } else {
-      // Tenta cache localStorage
-      try {
-        const cached = localStorage.getItem('todosCache');
-        const cachedTime = parseInt(localStorage.getItem('todosCacheTime')||'0');
-        if (cached && (Date.now() - cachedTime) < 30*60*1000) {
-          dashAllDados = normalizarDatasArray(JSON.parse(cached));
-          _renderRankingPorSemana(dom, sab);
-          return; // render imediato, não espera rede
-        }
-      } catch(e) {}
-      // Sem cache — mostra spinner e faz fetch
-      const rm = document.getElementById('rankMain');
-      if (rm) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">A CARREGAR...</div>';
-      const sheetsUrl = 'https://script.google.com/macros/s/AKfycbxpnTHL-_VI1WrxzVD5H5uSciwJZHVGHW__jH0I4JBMjYBfzxQAcAK0oKFU8728OzJQ/exec';
-      const proxy = 'https://corsproxy.io/?' + encodeURIComponent(sheetsUrl + '?action=getTodos');
-      fetch(proxy, {cache:'no-store'})
-        .then(r => r.json())
-        .then(td => {
-          if (Array.isArray(td)) {
-            dashAllDados = normalizarDatasArray(td);
-            try { localStorage.setItem('todosCache', JSON.stringify(td)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
-            if (_rankFilter === key) _renderRankingPorSemana(dom, sab);
-          }
-        }).catch(() => { if (rm) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">Erro a carregar dados</div>'; });
+      if (rm && _rankFilter === key) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">Sem dados para esta semana</div>';
     }
+  } catch(e) {
+    if (rm && _rankFilter === key) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">Erro ao carregar. Tenta novamente.</div>';
   }
 }
 
 function _renderRankingPorSemana(domStr, sabStr) {
-  const fonte = dashAllDados.length ? dashAllDados : (window._rankingCache || []);
-  if (!fonte.length) { showToast('📊 Carrega o ranking primeiro'); return; }
+  // Usar APENAS dashAllDados — _rankingCache não tem datas
+  if (!dashAllDados.length) {
+    showToast('📊 Sem dados — tenta atualizar');
+    return;
+  }
   const agg = {};
-  fonte.forEach(d => {
-    const data = (d.data || '').slice(0,10);
-    if (data < domStr || data > sabStr) return;
+  dashAllDados.forEach(d => {
+    const data = normalizarData(d.data || '');
+    if (!data || data < domStr || data > sabStr) return;
     if (!agg[d.nome]) agg[d.nome] = {nome:d.nome, equipa:d.equipa||'', onlines:0, sprays:0, palmilhas:0, camisolas:0, sacos:0, garrafas:0, elogios:0, szclub:0};
-    categorias.forEach(cat => { agg[d.nome][cat.key] += (d[cat.key]||0); });
+    categorias.forEach(cat => { agg[d.nome][cat.key] += (Number(d[cat.key])||0); });
   });
-  const dadosSemana = Object.values(agg);
-  renderRanking(dadosSemana, true);
-  // Guardar em localStorage para a próxima vez
-  try { localStorage.setItem('todosCache', JSON.stringify(fonte)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
+  renderRanking(Object.values(agg), true);
 }
 
 let _rankingIsSemana = false;
