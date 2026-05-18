@@ -1810,7 +1810,7 @@ const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxpnTHL-_VI1WrxzVD5H
     const rankAge = Date.now() - parseInt(localStorage.getItem('rankingCacheTime')||'0');
     const todosCached = localStorage.getItem('todosCache');
     const todosAge = Date.now() - parseInt(localStorage.getItem('todosCacheTime')||'0');
-    const TTL = 10 * 60 * 1000; // 10 minutos — dados frescos para filtro semanal
+    const TTL = 30 * 60 * 1000; // 30 minutos
 
     // Restaurar cache em memória imediatamente
     if (rankCached && rankAge < TTL) {
@@ -2626,8 +2626,7 @@ async function carregarRanking() {
       hadCache = true;
       const label = new Date(cachedTime).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
       if (age < CACHE_TTL) {
-        if (elU) elU.textContent = '✓ Atualizado às ' + label;
-        if (!signal.aborted) verificarMedalhasRanking();
+        if (elU) elU.textContent = '⏱ A atualizar...';
         // Carregar todosCache para filtro semanal — validar antes de usar
         if (!dashAllDados.length) {
           try {
@@ -2639,7 +2638,6 @@ async function carregarRanking() {
                 if (new Set(dts).size > 1) {
                   dashAllDados = normalizarDatasArray(parsed);
                 } else {
-                  // Cache corrompido — invalidar para forçar fetch no próximo clique semanal
                   localStorage.removeItem('todosCache');
                   localStorage.removeItem('todosCacheTime');
                 }
@@ -2647,7 +2645,7 @@ async function carregarRanking() {
             }
           } catch(e2) {}
         }
-        return;
+        // Não retornar — continuar para ir buscar dados frescos ao servidor em background
       }
       if (elU) elU.textContent = '⏱ ' + label + ' — a atualizar...';
     } else {
