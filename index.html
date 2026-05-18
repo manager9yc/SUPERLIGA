@@ -1810,14 +1810,28 @@ const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxpnTHL-_VI1WrxzVD5H
     const rankAge = Date.now() - parseInt(localStorage.getItem('rankingCacheTime')||'0');
     const todosCached = localStorage.getItem('todosCache');
     const todosAge = Date.now() - parseInt(localStorage.getItem('todosCacheTime')||'0');
-    const TTL = 30 * 60 * 1000; // 30 minutos
+    const TTL = 10 * 60 * 1000; // 10 minutos — dados frescos para filtro semanal
 
     // Restaurar cache em memória imediatamente
     if (rankCached && rankAge < TTL) {
       try { window._rankingCache = JSON.parse(rankCached); } catch(e) {}
     }
     if (todosCached && todosAge < TTL) {
-      try { window._todosPreloaded = JSON.parse(todosCached); } catch(e) {}
+      try {
+        const parsed = JSON.parse(todosCached);
+        // Validar cache: se todas as datas forem iguais está corrompido
+        if (Array.isArray(parsed) && parsed.length > 5) {
+          const datas = parsed.slice(0, 20).map(r => (r.data || '').slice(0, 10)).filter(Boolean);
+          if (new Set(datas).size > 1) {
+            window._todosPreloaded = parsed; // cache válido
+          } else {
+            localStorage.removeItem('todosCache');
+            localStorage.removeItem('todosCacheTime');
+          }
+        } else {
+          window._todosPreloaded = parsed;
+        }
+      } catch(e) {}
     }
 
     // Se o cache está velho ou inexistente, buscar em background silenciosamente
@@ -1867,13 +1881,26 @@ function localDateStr(d) {
 // Normaliza datas vindas do Sheets (ex: "2026-05-07T00:00:00.000Z") para data local
 // IMPORTANTE: não usa new Date() para não perder 1 dia por desfasamento UTC↔Lisboa
 function normalizarData(str) {
-  if (!str || typeof str !== 'string') return str;
-  if (!str.includes('T') && !str.includes('Z')) return str;
-  // Extrai sempre a parte YYYY-MM-DD diretamente, sem converter via UTC
-  const datePart = str.substring(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
-  const d = new Date(str);
-  return isNaN(d) ? str.split('T')[0] : localDateStr(d);
+  if (!str) return str;
+  // Já é string YYYY-MM-DD limpa
+  if (typeof str === 'string') {
+    const s = str.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // Tem T ou Z — extrair parte da data sem converter timezone
+    const datePart = s.substring(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
+    // Outro formato — tentar converter
+    const d = new Date(s);
+    return isNaN(d) ? s.split('T')[0] : localDateStr(d);
+  }
+  // É objeto Date
+  if (typeof str === 'object' && str.getFullYear) return localDateStr(str);
+  // É número (serial Excel/Sheets)
+  if (typeof str === 'number') {
+    const d = new Date(str);
+    return isNaN(d) ? '' : localDateStr(d);
+  }
+  return String(str).split('T')[0].trim();
 }
 function normalizarDatasArray(arr) {
   if (!Array.isArray(arr)) return arr;
@@ -2353,8 +2380,7 @@ function resetForm() {
 
 // RANKING
 function emptyRows() {
-  const msg = (_rankFilter && _rankFilter !== 'mes') ? 'Sem registos esta semana' : 'Sem registos este mês';
-  return `<tr><td colspan="4" style="text-align:center;padding:24px;color:#555;font-style:italic;font-size:13px">${msg}</td></tr>`;
+  return `<tr><td colspan="4" style="text-align:center;padding:24px;color:#555;font-style:italic;font-size:13px">Sem registos este mês</td></tr>`;
 }
 
 function buildRows(sorted, key) {
@@ -2509,24 +2535,18 @@ function setRankFilter(key, btn) {
           return; // render imediato, não espera rede
         }
       } catch(e) {}
-      // Sem cache — mostra spinner e faz fetch (direto + proxy em paralelo)
+      // Sem cache — mostra spinner e faz fetch
       const rm = document.getElementById('rankMain');
       if (rm) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">A CARREGAR...</div>';
-      const _sheetsUrlW = 'https://script.google.com/macros/s/AKfycbxpnTHL-_VI1WrxzVD5H5uSciwJZHVGHW__jH0I4JBMjYBfzxQAcAK0oKFU8728OzJQ/exec';
-      const _todosUrlW = _sheetsUrlW + '?action=getTodos';
-      const _todosProxyW = 'https://corsproxy.io/?' + encodeURIComponent(_todosUrlW);
-      Promise.race([
-        fetch(_todosUrlW, {cache:'no-store'}).then(r=>r.json()),
-        fetch(_todosProxyW, {cache:'no-store'}).then(r=>r.json()),
-        new Promise((_,reject) => setTimeout(()=>reject('timeout'), 10000))
-      ])
+      const sheetsUrl = 'https://script.google.com/macros/s/AKfycbxpnTHL-_VI1WrxzVD5H5uSciwJZHVGHW__jH0I4JBMjYBfzxQAcAK0oKFU8728OzJQ/exec';
+      const proxy = 'https://corsproxy.io/?' + encodeURIComponent(sheetsUrl + '?action=getTodos');
+      fetch(proxy, {cache:'no-store'})
+        .then(r => r.json())
         .then(td => {
-          if (Array.isArray(td) && td.length) {
+          if (Array.isArray(td)) {
             dashAllDados = normalizarDatasArray(td);
             try { localStorage.setItem('todosCache', JSON.stringify(td)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
             if (_rankFilter === key) _renderRankingPorSemana(dom, sab);
-          } else {
-            if (rm) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">Sem dados para esta semana</div>';
           }
         }).catch(() => { if (rm) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">Erro a carregar dados</div>'; });
     }
@@ -2534,46 +2554,10 @@ function setRankFilter(key, btn) {
 }
 
 function _renderRankingPorSemana(domStr, sabStr) {
-  // Só usar dashAllDados — _rankingCache tem dados agregados sem datas, inútil para filtro semanal
-  if (!dashAllDados.length) {
-    // Tentar carregar do localStorage antes de mostrar erro
-    try {
-      const cached = localStorage.getItem('todosCache');
-      const cachedTime = parseInt(localStorage.getItem('todosCacheTime') || '0');
-      if (cached && (Date.now() - cachedTime) < 60*60*1000) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length) {
-          dashAllDados = normalizarDatasArray(parsed);
-        }
-      }
-    } catch(e) {}
-  }
-  if (!dashAllDados.length) {
-    // Buscar dados frescos e depois renderizar
-    const rm = document.getElementById('rankMain');
-    if (rm) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">A CARREGAR...</div>';
-    const sheetsUrl = 'https://script.google.com/macros/s/AKfycbxpnTHL-_VI1WrxzVD5H5uSciwJZHVGHW__jH0I4JBMjYBfzxQAcAK0oKFU8728OzJQ/exec';
-    const todosUrl = sheetsUrl + '?action=getTodos';
-    const todosProxy = 'https://corsproxy.io/?' + encodeURIComponent(todosUrl);
-    Promise.race([
-      fetch(todosUrl, {cache:'no-store'}).then(r=>r.json()),
-      fetch(todosProxy, {cache:'no-store'}).then(r=>r.json()),
-      new Promise((_,reject) => setTimeout(()=>reject('timeout'), 10000))
-    ]).then(td => {
-      if (Array.isArray(td) && td.length) {
-        dashAllDados = normalizarDatasArray(td);
-        try { localStorage.setItem('todosCache', JSON.stringify(td)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
-        _renderRankingPorSemana(domStr, sabStr);
-      } else {
-        if (rm) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">Sem dados para esta semana</div>';
-      }
-    }).catch(() => {
-      if (rm) rm.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:2px">Erro a carregar dados</div>';
-    });
-    return;
-  }
+  const fonte = dashAllDados.length ? dashAllDados : (window._rankingCache || []);
+  if (!fonte.length) { showToast('📊 Carrega o ranking primeiro'); return; }
   const agg = {};
-  dashAllDados.forEach(d => {
+  fonte.forEach(d => {
     const data = (d.data || '').slice(0,10);
     if (data < domStr || data > sabStr) return;
     if (!agg[d.nome]) agg[d.nome] = {nome:d.nome, equipa:d.equipa||'', onlines:0, sprays:0, palmilhas:0, camisolas:0, sacos:0, garrafas:0, elogios:0, szclub:0};
@@ -2582,7 +2566,7 @@ function _renderRankingPorSemana(domStr, sabStr) {
   const dadosSemana = Object.values(agg);
   renderRanking(dadosSemana, true);
   // Guardar em localStorage para a próxima vez
-  try { localStorage.setItem('todosCache', JSON.stringify(dashAllDados)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
+  try { localStorage.setItem('todosCache', JSON.stringify(fonte)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
 }
 
 let _rankingIsSemana = false;
@@ -2621,49 +2605,12 @@ async function carregarRanking() {
       if (age < CACHE_TTL) {
         if (elU) elU.textContent = '✓ Atualizado às ' + label;
         if (!signal.aborted) verificarMedalhasRanking();
-        // Mesmo com cache fresco, garantir que dashAllDados está preenchido para filtro semanal
+        // Mesmo com cache fresco, carregar todosCache para filtro semanal
         if (!dashAllDados.length) {
-          // 1. Tentar todosCache do localStorage (TTL alargado para 60 min)
           try {
             const tc = localStorage.getItem('todosCache');
-            const tcAge = Date.now() - parseInt(localStorage.getItem('todosCacheTime')||'0');
-            if (tc && tcAge < 60*60*1000) {
-              const parsed = JSON.parse(tc);
-              if (Array.isArray(parsed) && parsed.length) {
-                dashAllDados = normalizarDatasArray(parsed);
-                window.dashAllDados = dashAllDados;
-              }
-            }
+            if (tc) { dashAllDados = normalizarDatasArray(JSON.parse(tc)) }
           } catch(e2) {}
-        }
-        if (!dashAllDados.length) {
-          // 2. Usar _todosPreloaded se já chegou do background fetch
-          if (window._todosPreloaded && Array.isArray(window._todosPreloaded) && window._todosPreloaded.length) {
-            dashAllDados = normalizarDatasArray(window._todosPreloaded);
-            window.dashAllDados = dashAllDados;
-            window._todosPreloaded = null;
-            try { localStorage.setItem('todosCache', JSON.stringify(dashAllDados)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e2) {}
-          } else {
-            // 3. Fetch getTodos em background para o filtro semanal funcionar
-            const _tUrl = SHEETS_URL + '?action=getTodos';
-            const _tProxy = 'https://corsproxy.io/?' + encodeURIComponent(_tUrl);
-            Promise.race([
-              fetch(_tUrl, {cache:'no-store'}).then(r=>r.json()),
-              fetch(_tProxy, {cache:'no-store'}).then(r=>r.json()),
-              new Promise((_,rej)=>setTimeout(()=>rej('t'),10000))
-            ]).then(td => {
-              if (Array.isArray(td) && td.length) {
-                dashAllDados = normalizarDatasArray(td);
-                window.dashAllDados = dashAllDados;
-                try { localStorage.setItem('todosCache', JSON.stringify(td)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
-                // Se o utilizador já tem o filtro semanal activo, renderizar agora
-                if (_rankFilter && _rankFilter !== 'mes') {
-                  const chip = document.querySelector('.rank-filter-chip.active[data-dom]');
-                  if (chip) _renderRankingPorSemana(chip.dataset.dom, chip.dataset.sab);
-                }
-              }
-            }).catch(()=>{});
-          }
         }
         return;
       }
@@ -2750,7 +2697,6 @@ async function carregarRanking() {
     }
     if (td && !signal.aborted) {
       dashAllDados = normalizarDatasArray(td);
-      window.dashAllDados = dashAllDados; // sync para outras secções (cofre, etc.)
       _patchSecaoRegistos();
       if (_rankFilter === 'mes') {
         renderRanking(dashAllDados.length ? await getRankingFromDados(dashAllDados) : []);
