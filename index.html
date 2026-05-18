@@ -2353,7 +2353,8 @@ function resetForm() {
 
 // RANKING
 function emptyRows() {
-  return `<tr><td colspan="4" style="text-align:center;padding:24px;color:#555;font-style:italic;font-size:13px">Sem registos este mês</td></tr>`;
+  const msg = (_rankFilter && _rankFilter !== 'mes') ? 'Sem registos esta semana' : 'Sem registos este mês';
+  return `<tr><td colspan="4" style="text-align:center;padding:24px;color:#555;font-style:italic;font-size:13px">${msg}</td></tr>`;
 }
 
 function buildRows(sorted, key) {
@@ -2620,12 +2621,49 @@ async function carregarRanking() {
       if (age < CACHE_TTL) {
         if (elU) elU.textContent = '✓ Atualizado às ' + label;
         if (!signal.aborted) verificarMedalhasRanking();
-        // Mesmo com cache fresco, carregar todosCache para filtro semanal
+        // Mesmo com cache fresco, garantir que dashAllDados está preenchido para filtro semanal
         if (!dashAllDados.length) {
+          // 1. Tentar todosCache do localStorage (TTL alargado para 60 min)
           try {
             const tc = localStorage.getItem('todosCache');
-            if (tc) { dashAllDados = normalizarDatasArray(JSON.parse(tc)) }
+            const tcAge = Date.now() - parseInt(localStorage.getItem('todosCacheTime')||'0');
+            if (tc && tcAge < 60*60*1000) {
+              const parsed = JSON.parse(tc);
+              if (Array.isArray(parsed) && parsed.length) {
+                dashAllDados = normalizarDatasArray(parsed);
+                window.dashAllDados = dashAllDados;
+              }
+            }
           } catch(e2) {}
+        }
+        if (!dashAllDados.length) {
+          // 2. Usar _todosPreloaded se já chegou do background fetch
+          if (window._todosPreloaded && Array.isArray(window._todosPreloaded) && window._todosPreloaded.length) {
+            dashAllDados = normalizarDatasArray(window._todosPreloaded);
+            window.dashAllDados = dashAllDados;
+            window._todosPreloaded = null;
+            try { localStorage.setItem('todosCache', JSON.stringify(dashAllDados)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e2) {}
+          } else {
+            // 3. Fetch getTodos em background para o filtro semanal funcionar
+            const _tUrl = SHEETS_URL + '?action=getTodos';
+            const _tProxy = 'https://corsproxy.io/?' + encodeURIComponent(_tUrl);
+            Promise.race([
+              fetch(_tUrl, {cache:'no-store'}).then(r=>r.json()),
+              fetch(_tProxy, {cache:'no-store'}).then(r=>r.json()),
+              new Promise((_,rej)=>setTimeout(()=>rej('t'),10000))
+            ]).then(td => {
+              if (Array.isArray(td) && td.length) {
+                dashAllDados = normalizarDatasArray(td);
+                window.dashAllDados = dashAllDados;
+                try { localStorage.setItem('todosCache', JSON.stringify(td)); localStorage.setItem('todosCacheTime', Date.now().toString()); } catch(e) {}
+                // Se o utilizador já tem o filtro semanal activo, renderizar agora
+                if (_rankFilter && _rankFilter !== 'mes') {
+                  const chip = document.querySelector('.rank-filter-chip.active[data-dom]');
+                  if (chip) _renderRankingPorSemana(chip.dataset.dom, chip.dataset.sab);
+                }
+              }
+            }).catch(()=>{});
+          }
         }
         return;
       }
