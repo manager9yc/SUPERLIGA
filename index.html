@@ -6513,7 +6513,7 @@ function renderDesafiosMedalhas() {
           <div style="background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.25);border-radius:14px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
             <div>
               <div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(201,168,76,0.5);margin-bottom:2px;">PRÉMIO ACUMULADO</div>
-              <div style="font-family:'Bebas Neue',sans-serif;font-size:42px;background:linear-gradient(135deg,#a07820,#C9A84C,#E8C97A);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.1;" id="cofreBtnJackpot">€ 10,00</div>
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:42px;background:linear-gradient(135deg,#a07820,#C9A84C,#E8C97A);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.1;" id="cofreBtnJackpot">€ 2,00</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
               <div style="background:linear-gradient(135deg,#a07820,#C9A84C);border-radius:10px;padding:10px 16px;">
@@ -7454,7 +7454,7 @@ function _abrirCofreDirecto() {
   cofreInit();
   // Sync jackpot
   try {
-    const s = JSON.parse(localStorage.getItem('cofreState2') || localStorage.getItem('cofreState') || '{}');
+    const s = JSON.parse(localStorage.getItem('cofreState') || '{}');
     if (s.jackpot !== undefined) {
       const el = document.getElementById('cofreBtnJackpot');
       if (el) el.textContent = '€ ' + Number(s.jackpot).toFixed(2).replace('.',',');
@@ -7481,7 +7481,7 @@ function fecharCofre() {
   } catch(e) {}
   // Sync jackpot display on button
   try {
-    const s = JSON.parse(localStorage.getItem('cofreState2') || '{}');
+    const s = JSON.parse(localStorage.getItem('cofreState') || '{}');
     if (s.jackpot !== undefined) {
       document.getElementById('cofreBtnJackpot').textContent = '€ ' + Number(s.jackpot).toFixed(2).replace('.',',');
     }
@@ -7489,7 +7489,7 @@ function fecharCofre() {
 }
 function syncCofreJackpot() {
   try {
-    const s = JSON.parse(localStorage.getItem('cofreState2') || '{}');
+    const s = JSON.parse(localStorage.getItem('cofreState') || '{}');
     const el = document.getElementById('cofreBtnJackpot');
     if (el && s.jackpot !== undefined) el.textContent = '€ ' + Number(s.jackpot).toFixed(2).replace('.',',');
   } catch(e) {}
@@ -8634,7 +8634,7 @@ window.cofreSom = cofreSom;
       <div>
         
       </div>
-      <div class="jackpot-week-info">Base €10,00 · +€2,00 por semana sem vencedor · <span id="weeksNoWinner">1</span> semana(s) acumulada(s)</div>
+      <div class="jackpot-week-info">Base €2,00 · +€2,00 por semana sem vencedor · <span id="weeksNoWinner">1</span> semana(s) acumulada(s)</div>
     </div>
 
     <!-- PLAYER SELECT (hidden) -->
@@ -8708,7 +8708,7 @@ window.cofreSom = cofreSom;
         <div class="rules-title">COMO FUNCIONA</div>
         <div class="rule-item"><div class="rule-num">1</div><div class="rule-text">Os líderes de cada categoria têm direito a tentar adivinhar o código secreto de 4 dígitos.</div></div>
         <div class="rule-item"><div class="rule-num">2</div><div class="rule-text">Cada jogador tem <strong>3 tentativas por semana</strong>. O código muda semanalmente.</div></div>
-        <div class="rule-item"><div class="rule-num">3</div><div class="rule-text">O prémio começa em <strong>€10,00</strong> e aumenta <strong>€2,00 por semana</strong> sem vencedor. Se ninguém acertar, acumula para a semana seguinte.</div></div>
+        <div class="rule-item"><div class="rule-num">3</div><div class="rule-text">O prémio começa em <strong>€2,00</strong> e aumenta <strong>€2,00 por semana</strong> sem vencedor. Se ninguém acertar, acumula para a semana seguinte.</div></div>
         <div class="rule-item"><div class="rule-num">4</div><div class="rule-text">Quem adivinhar o código ganha o prémio acumulado e o cofre reinicia.</div></div>
       </div>
     </div>
@@ -10180,6 +10180,10 @@ if (typeof _origCarregarDashPatch === 'function') {
     return r;
   };
 }
+// Sincronizar valor do cofre no menu jogos ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(syncCofreJackpot, 100);
+});
 </script>
 
 <!-- ═══════════════════════════════════════════════════════ -->
