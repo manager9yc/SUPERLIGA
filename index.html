@@ -2243,6 +2243,18 @@ async function reenviarPendentes(){
 // Gatilhos: ao abrir a app e sempre que a ligação à internet voltar
 window.addEventListener('load', () => { setTimeout(reenviarPendentes, 4000); carregarRosterServidor(); });
 window.addEventListener('online', () => setTimeout(reenviarPendentes, 1000));
+// Atualização automática ao voltar à app (ganhar visibilidade/foco)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  try {
+    const r = document.getElementById('screen-ranking');
+    const d = document.getElementById('screen-dash');
+    if (r && r.classList.contains('active') && typeof carregarRanking === 'function') carregarRanking();
+    if (d && d.classList.contains('active') && typeof carregarDashboard === 'function') carregarDashboard();
+    if (typeof reenviarPendentes === 'function') reenviarPendentes();
+    if (typeof carregarRosterServidor === 'function') carregarRosterServidor();
+  } catch(e) {}
+});
 
 // Flag global para evitar dupla submissão
 let _submitEmCurso = false;
@@ -2252,6 +2264,19 @@ async function submeter() {
   const nomeAtual = nomeSel;
   const dataVal = document.getElementById('dataRegisto').value;
   if (!dataVal) { showToast('⚠️ Escolhe a data'); return; }
+
+  // ── REGRA FIXA: só permite registar HOJE ou ONTEM ──
+  // Revalidado no momento do envio (calcula as datas frescas — corrige também
+  // o caso de a app ficar aberta a passar da meia-noite).
+  {
+    const _h = new Date();
+    const _o = new Date(_h); _o.setDate(_o.getDate() - 1);
+    const _f = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    if (dataVal !== _f(_h) && dataVal !== _f(_o)) {
+      showToast('⚠️ Só podes registar vendas de hoje ou de ontem');
+      return;
+    }
+  }
 
   // Bloquear dupla submissão (double tap, etc.)
   if (_submitEmCurso) return;
