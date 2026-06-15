@@ -1684,9 +1684,6 @@ body.theme-ucl .submit-btn:active{background:linear-gradient(135deg,#22C55E,#16A
         <button onclick="carregarAdmin()" style="background:var(--orange);border:none;border-radius:10px;padding:10px 18px;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer">Atualizar</button>
         <div id="adminSummary" style="font-size:12px;color:var(--muted)"></div>
         <button onclick="limparCacheAdmin()" style="background:var(--card);border:1px solid #7a2200;border-radius:10px;padding:10px 14px;color:#FF6644;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">🗑 Cache</button>
-        <button onclick="limparChavesSlot()" style="background:#1a0000;border:1px solid #ef4444;border-radius:10px;padding:10px 14px;color:#ef4444;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">🗑 Reset Slot</button>
-        <button onclick="limparRegistosHoje()" style="background:#1a0000;border:1px solid #ef4444;border-radius:10px;padding:10px 14px;color:#ef4444;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">🗑 Reset Hoje</button>
-        <button onclick="slotAbrir('TESTE','Medalha Teste')" style="background:var(--card);border:1px solid #C9A84C;border-radius:10px;padding:10px 14px;color:#C9A84C;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">🎰 Testar Slot</button>
         <button onclick="bloquearAdmin()" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;margin-left:auto">🔒 Bloquear</button>
         <!-- THEME SWITCHER -->
         <div style="display:flex;gap:6px;align-items:center;margin-left:8px;border-left:1px solid var(--border);padding-left:10px">
@@ -1802,6 +1799,45 @@ const categorias = [
 
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxpnTHL-_VI1WrxzVD5H5uSciwJZHVGHW__jH0I4JBMjYBfzxQAcAK0oKFU8728OzJQ/exec';
 
+// ════════════════════════════════════════════════════════════════════
+// COLABORADORES (roster) — persistência
+// Camada 1: localStorage 'equipasData' (imediata, sobrevive a recarregar neste aparelho)
+// Camada 2: servidor (Apps Script) — partilha por TODOS os aparelhos.
+//   >>> Depois de publicares o Web App de colaboradores, cola o URL aqui: <<<
+const ROSTER_URL = 'https://script.google.com/macros/s/AKfycbzA0PF6yen65MgK3NSDW5YCmXSrzHCqtnX1h4kkD1dGLOgU4TNwUoX0p_1QRi9LvCue/exec';
+
+function _rosterSnapshot(){
+  return equipas.map(e => ({ id: e.id, nomes: e.nomes }));
+}
+function _aplicarRoster(arr){
+  if(!Array.isArray(arr)) return;
+  arr.forEach(s => { const e = equipas.find(eq => eq.id === s.id); if(e && Array.isArray(s.nomes)) e.nomes = s.nomes.slice().sort(); });
+}
+// Grava o roster localmente E no servidor (se ROSTER_URL estiver configurado)
+function salvarRoster(){
+  const snap = _rosterSnapshot();
+  try { localStorage.setItem('equipasData', JSON.stringify(snap)); } catch(e){}
+  if(!ROSTER_URL) return;
+  fetch(ROSTER_URL, { method:'POST', mode:'no-cors', body: JSON.stringify({action:'saveRoster', roster: snap}) })
+    .catch(()=>{
+      const proxy = 'https://corsproxy.io/?' + encodeURIComponent(ROSTER_URL);
+      fetch(proxy, { method:'POST', body: JSON.stringify({action:'saveRoster', roster: snap}) }).catch(()=>{});
+    });
+}
+// Carrega o roster do servidor no arranque e aplica (atualiza todos os aparelhos)
+async function carregarRosterServidor(){
+  if(!ROSTER_URL) return;
+  try {
+    const r = await fetch(ROSTER_URL + '?action=getRoster', { cache:'no-store' });
+    const data = await r.json();
+    if(Array.isArray(data) && data.length){
+      _aplicarRoster(data);
+      try { localStorage.setItem('equipasData', JSON.stringify(_rosterSnapshot())); } catch(e){}
+      if(typeof renderGestaoLista==='function' && document.getElementById('gestaoLista')) renderGestaoLista();
+    }
+  } catch(e){}
+}
+
 // ── PRÉ-CARREGAMENTO em background logo no arranque ──
 // Carrega o ranking e todos os dados em cache para que o ranking abra instantaneamente
 (function _preloadData() {
@@ -1905,6 +1941,28 @@ function normalizarData(str) {
 function normalizarDatasArray(arr) {
   if (!Array.isArray(arr)) return arr;
   return arr.map(r => r && r.data ? {...r, data: normalizarData(r.data)} : r);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DEFINIÇÃO FIXA DA SEMANA — DOMINGO (início) → SÁBADO (fim)
+// Regra INALTERÁVEL da Super Liga. Toda a app (ranking semanal, filtros,
+// gráficos do vendedor) usa EXCLUSIVAMENTE estas funções. NÃO ALTERAR.
+// ════════════════════════════════════════════════════════════════════
+const SEMANA_INICIO_DIA = 0; // 0 = Domingo (Date.getDay) — início da semana
+const SEMANA_FIM_DIA    = 6; // 6 = Sábado — fim da semana
+// Domingo (hora local, sem UTC) da semana a que pertence a data d
+function domingoDaSemana(d){
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay());
+}
+// Sábado (hora local, sem UTC) da semana a que pertence a data d
+function sabadoDaSemana(d){
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay() + 6);
+}
+// Número sequencial da semana (Domingo→Sábado). Semanas consecutivas diferem 1.
+function getUserWeek(d){
+  const dom = domingoDaSemana(d);                  // domingo desta semana (local)
+  const jan1 = new Date(dom.getFullYear(), 0, 1);  // 1 jan do ano do domingo
+  return Math.floor((dom - jan1) / (7*86400000)) + 1;
 }
 
 const hoje = new Date();
@@ -2124,6 +2182,59 @@ function mostrarPopupDuplicado(nome, data) {
   document.body.appendChild(overlay);
 }
 
+// ════════════════════════════════════════════════════════════════════
+// ENVIO FIÁVEL PARA O SHEETS — com verificação e fila de reenvio
+// Problema antigo: o envio era "dispara e esquece"; se o Google falhasse,
+// o registo perdia-se em silêncio. Agora: envia, confirma no servidor que
+// o registo chegou e, se não chegou, guarda numa fila e reenvia depois
+// (verificando antes se já existe, para NUNCA criar duplicados).
+// ════════════════════════════════════════════════════════════════════
+function _pendentesGet(){ try { return JSON.parse(localStorage.getItem('pendingRegistos')||'[]'); } catch(e){ return []; } }
+function _pendentesSet(arr){ try { localStorage.setItem('pendingRegistos', JSON.stringify(arr.slice(0,100))); } catch(e){} }
+function _pendentesAdd(payload){
+  const arr=_pendentesGet();
+  if(!arr.some(p=>p.nome===payload.nome && p.data===payload.data)){ arr.push(payload); _pendentesSet(arr); }
+}
+function _pendentesRemove(payload){
+  _pendentesSet(_pendentesGet().filter(p=>!(p.nome===payload.nome && p.data===payload.data)));
+}
+
+// Dispara o POST para o Sheets (no-cors: compatível com o Apps Script)
+function _dispararEnvio(payload){
+  return fetch(SHEETS_URL, { method:'POST', body: JSON.stringify(payload), mode:'no-cors' });
+}
+
+// Vai buscar o getTodos fresco e diz se este registo (nome+data) já lá está
+async function _registoExisteNoSheets(payload){
+  try {
+    const r = await fetch(SHEETS_URL + '?action=getTodos', {cache:'no-store'});
+    const td = await r.json();
+    return Array.isArray(td) && td.some(t => t.nome===payload.nome && normalizarData(t.data||'')===payload.data);
+  } catch(e){ return false; }
+}
+
+// Verifica ~6s depois do envio se o registo chegou; se não, mete na fila
+async function _verificarEnvio(payload){
+  const ok = await _registoExisteNoSheets(payload);
+  if (ok) { _pendentesRemove(payload); }
+  else { _pendentesAdd(payload); showToast('⚠️ Registo guardado — ainda por confirmar. Vamos tentar de novo.'); }
+}
+
+// Reenvia todos os pendentes; confirma existência antes de cada reenvio
+async function reenviarPendentes(){
+  const arr=_pendentesGet();
+  if(!arr.length) return;
+  for(const p of arr){
+    if(await _registoExisteNoSheets(p)){ _pendentesRemove(p); continue; } // já chegou
+    _dispararEnvio(p);                  // reenvia
+    await new Promise(r=>setTimeout(r,1500));
+    if(await _registoExisteNoSheets(p)) _pendentesRemove(p);
+  }
+}
+// Gatilhos: ao abrir a app e sempre que a ligação à internet voltar
+window.addEventListener('load', () => { setTimeout(reenviarPendentes, 4000); carregarRosterServidor(); });
+window.addEventListener('online', () => setTimeout(reenviarPendentes, 1000));
+
 // Flag global para evitar dupla submissão
 let _submitEmCurso = false;
 
@@ -2189,12 +2300,14 @@ async function submeter() {
     localStorage.setItem('historico_local', JSON.stringify(filtrado.slice(0, 60)));
   } catch(e) {}
 
-  // Enviar para o Sheets — UMA única vez, sem retry que possa duplicar
-  fetch(SHEETS_URL, { method:'POST', body: JSON.stringify(payload), mode:'no-cors' })
-    .catch(e => {
-      console.error('Erro ao enviar para Sheets:', e);
-      showToast('⚠️ Sem ligação. Dados guardados localmente.');
-    });
+  // Enviar para o Sheets e CONFIRMAR que chegou (sem nunca duplicar)
+  _dispararEnvio(payload).catch(e => {
+    console.error('Erro ao enviar para Sheets:', e);
+    _pendentesAdd(payload);
+    showToast('⚠️ Sem ligação. Guardado — vamos tentar enviar de novo.');
+  });
+  // Confirmação assíncrona ~6s depois (o append no servidor é rápido)
+  setTimeout(() => { _verificarEnvio(payload); }, 6000);
 
   // Liberar flag após 3s (tempo suficiente para o fetch ter sido disparado)
   setTimeout(() => { _submitEmCurso = false; }, 3000);
@@ -2478,17 +2591,17 @@ function _localDateStr(d) {
 }
 
 function _getSemanaAnterior() {
-  // Devolve semana atual e semana anterior, ambas dom→sab, em hora local (sem UTC)
+  // Devolve semana atual e semana anterior — SEMPRE Domingo→Sábado (ver definição fixa no topo)
   const now = new Date();
-  const diaSemana = now.getDay(); // 0=Dom ... 6=Sab
 
-  // Domingo da semana atual em hora local
-  const domAtual = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diaSemana);
-  const sabAtual  = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diaSemana + 6);
+  // Semana atual (Domingo → Sábado), em hora local
+  const domAtual = domingoDaSemana(now);
+  const sabAtual = sabadoDaSemana(now);
 
-  // Domingo da semana anterior em hora local
-  const domAnterior = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diaSemana - 7);
-  const sabAnterior  = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diaSemana - 1);
+  // Semana anterior = recuar 7 dias e voltar a aplicar a mesma regra
+  const semAnt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+  const domAnterior = domingoDaSemana(semAnt);
+  const sabAnterior = sabadoDaSemana(semAnt);
 
   return [
     { dom: domAtual,    sab: sabAtual,    label: '📅 Esta semana' },
@@ -2823,56 +2936,43 @@ function renderRanking(dados, isSemana) {
   // Registos por secção (contagem de linhas individuais)
   html += renderRegistosPorSeccao(dados);
 
-  // Medalhas conquistadas
+  // ── Medalhas conquistadas ESTE MÊS ──
+  // REGRA FIXA E INALTERÁVEL: contam APENAS os dados do mês atual que existem
+  // no Google Sheets (dashAllDados / getTodos). NUNCA usa cache acumulado,
+  // NUNCA usa historico_local, NUNCA vai buscar a meses anteriores.
+  // Recalcula sempre ao vivo: se a pessoa já não qualifica este mês, a medalha sai.
   if (dados.length) {
     let medalhasHtml = '<div class="slabel" style="margin-top:28px">🏅 Medalhas conquistadas este mês</div><div style="display:flex;flex-direction:column;gap:8px">';
     const mesAtual2 = new Date().getMonth(), anoAtual2 = new Date().getFullYear();
-    const mesKey = `medalhasCache_${anoAtual2}_${mesAtual2}`;
 
-    // Load persistent medal cache — never loses medals already earned
-    let medalCache = {};
-    try { medalCache = JSON.parse(localStorage.getItem(mesKey) || '{}'); } catch(e) {}
-
-    // Compute from current data and MERGE with cache (union — never remove)
+    // Agrupar por nome SÓ os registos do mês atual vindos do Sheets
     const dadosPorNome = {};
-    const fonte = dashAllDados.length ? dashAllDados : dados;
-    fonte.filter(d=>d&&d.nome).forEach(d => {
-      const dNorm = {...d, data: (d.data||'').split('T')[0]};
-      if (!dadosPorNome[dNorm.nome]) dadosPorNome[dNorm.nome] = [];
-      dadosPorNome[dNorm.nome].push(dNorm);
+    (Array.isArray(dashAllDados) ? dashAllDados : []).forEach(d => {
+      if (!d || !d.nome) return;
+      const data = normalizarData(d.data || '');
+      const dt = new Date(data + 'T12:00:00');
+      if (isNaN(dt) || dt.getMonth() !== mesAtual2 || dt.getFullYear() !== anoAtual2) return; // só mês atual
+      if (!dadosPorNome[d.nome]) dadosPorNome[d.nome] = [];
+      dadosPorNome[d.nome].push({...d, data});
     });
-    try {
-      JSON.parse(localStorage.getItem('historico_local')||'[]').forEach(d => {
-        if (!d||!d.nome) return;
-        const dNorm = {...d, data: (d.data||'').split('T')[0]};
-        if (!dadosPorNome[dNorm.nome]) dadosPorNome[dNorm.nome] = [];
-        if (!dadosPorNome[dNorm.nome].some(x=>x.data===dNorm.data)) dadosPorNome[dNorm.nome].push(dNorm);
-      });
-    } catch(e) {}
 
-    // Update cache with newly computed medals
+    // Calcular medalhas AO VIVO por pessoa (calcularMedalhas já filtra ao mês)
+    const medalhasPorNome = {};
     Object.keys(dadosPorNome).forEach(nome => {
-      const earned = calcularMedalhas(dadosPorNome[nome]).filter(m=>m.earned).map(m=>({icon:m.icon,name:m.name}));
-      const doMesN = dadosPorNome[nome].filter(d => {
-        try { const dt = new Date(d.data+'T12:00:00'); return dt.getMonth()===mesAtual2&&dt.getFullYear()===anoAtual2; } catch(e){ return false; }
-      });
-      const maxOnlines = doMesN.length ? Math.max(...doMesN.map(d=>Number(d.onlines)||0)) : 0;
-      const maxSprays  = doMesN.length ? Math.max(...doMesN.map(d=>Number(d.sprays)||0))  : 0;
-      if (maxOnlines >= 8 && !earned.some(m=>m.name==='Super Online')) earned.push({icon:'🌟',name:'Super Online'});
-      if (maxSprays >= 10 && !earned.some(m=>m.name==='Spray Explosion')) earned.push({icon:'💥',name:'Spray Explosion'});
-      if (!medalCache[nome]) medalCache[nome] = [];
-      // Merge — only add, never remove
-      earned.forEach(m => { if (!medalCache[nome].some(c=>c.name===m.name)) medalCache[nome].push(m); });
+      const regs = dadosPorNome[nome];
+      const earned = calcularMedalhas(regs).filter(m=>m.earned).map(m=>({icon:m.icon,name:m.name}));
+      // Conquistas diárias (num único dia) — também só com dados deste mês
+      const maxOnlines = Math.max(0, ...regs.map(d=>Number(d.onlines)||0));
+      const maxSprays  = Math.max(0, ...regs.map(d=>Number(d.sprays)||0));
+      if (maxOnlines >= 8 && !earned.some(m=>m.name==='Super Online'))    earned.push({icon:'🌟',name:'Super Online'});
+      if (maxSprays  >= 10 && !earned.some(m=>m.name==='Spray Explosion')) earned.push({icon:'💥',name:'Spray Explosion'});
+      if (earned.length) medalhasPorNome[nome] = earned;
     });
 
-    // Persist updated cache
-    try { localStorage.setItem(mesKey, JSON.stringify(medalCache)); } catch(e) {}
-
-    // Render from cache (always complete, never loses medals)
+    // Render — direto do cálculo ao vivo, sem cache
     let temMedalhas = false;
-    Object.keys(medalCache).sort().forEach(nome => {
-      const conquistadas = medalCache[nome];
-      if (!conquistadas.length) return;
+    Object.keys(medalhasPorNome).sort().forEach(nome => {
+      const conquistadas = medalhasPorNome[nome];
       temMedalhas = true;
       const foto=getFoto?getFoto(nome):null;
       const ini=nome.split(' ').map(x=>x[0]).slice(0,2).join('');
@@ -3808,7 +3908,7 @@ function mostrarDash(nome) {
   const mesAtual = new Date().getMonth();
   const anoAtual = new Date().getFullYear();
   const semanas = [0,0,0,0];
-  function getUserWeek(d){const jan1=new Date(d.getFullYear(),0,1);const doy=Math.floor((d-jan1)/86400000);return Math.floor(doy/7)-3;}
+  // getUserWeek é a definição central Domingo→Sábado (topo do ficheiro)
   const semanaAtual = getUserWeek(new Date());
   dadosVendedor.forEach(d => {
     const dt = new Date((d.data || d.Data || '')+'T12:00:00');
@@ -3916,7 +4016,7 @@ function mostrarDash(nome) {
             <div class="d-cbar ${i===semanas.length-1?'hi':''}" style="height:${Math.round(v/maxSem*88)}px"></div>
           </div>`).join('')}
         <div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:10px">
-          ${(()=>{const hoje=new Date();function getUserWeek(d){const jan1=new Date(d.getFullYear(),0,1);const doy=Math.floor((d-jan1)/86400000);return Math.floor(doy/7)-3;}const wn=getUserWeek(hoje);return [wn-3,wn-2,wn-1,wn].map((w,i)=>`<div style="flex:1;font-size:10px;color:var(--muted);text-align:center">S${Math.max(1,w)}${i===3?' ▶':''}</div>`).join('');})()}
+          ${(()=>{const wn=getUserWeek(new Date());return [wn-3,wn-2,wn-1,wn].map((w,i)=>`<div style="flex:1;font-size:10px;color:var(--muted);text-align:center">S${Math.max(1,w)}${i===3?' ▶':''}</div>`).join('');})()}
         </div>
       </div>
     </div>
@@ -4929,24 +5029,50 @@ async function guardarEdicao() {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════
+// APAGAR EM SEGURANÇA — o front-end decide EXATAMENTE que linhas apagar
+// (comparando datas por TEXTO, à prova de fuso horário) e apaga linha a
+// linha pelo número exato. Evita o erro antigo em que apagar "o mês"
+// podia apanhar dias de outro mês (causa provável da perda dos dias 1-2).
+// ════════════════════════════════════════════════════════════════════
+// Busca os registos frescos na ORDEM da folha (nº de linha = índice + 2)
+async function _registosFrescos(){
+  const r = await fetch(SHEETS_URL + '?action=getTodos', {cache:'no-store'});
+  const td = await r.json();
+  if(!Array.isArray(td)) throw new Error('sem dados');
+  return td.map((row,i)=>({...row, data: normalizarData(row.data||''), _rowIndex: i+2}));
+}
+// Apaga UMA linha pelo número exato; devolve true se o servidor confirmou
+async function _apagarLinha(rowIndex){
+  const proxy = 'https://corsproxy.io/?' + encodeURIComponent(SHEETS_URL);
+  try {
+    const res = await fetch(proxy, { method:'POST', body: JSON.stringify({action:'apagarRegisto', rowIndex}) });
+    const result = await res.json().catch(()=>null);
+    return !!(result && result.success);
+  } catch(e){ return false; }
+}
+
 async function executarApagarMes() {
   showToast('⏳ A apagar...');
-  const mesAtual = new Date().getMonth();
-  const anoAtual = new Date().getFullYear();
+  const now = new Date();
+  const prefixoMes = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0'); // ex: "2026-06"
   try {
-    const proxy = 'https://corsproxy.io/?';
-    const url = encodeURIComponent(SHEETS_URL);
-    const res = await fetch(proxy + url, { method:'POST', body: JSON.stringify({action:'apagarMes', mes: mesAtual, ano: anoAtual}) });
-    const result = await res.json();
-    showToast(result.success ? '✓ Mês apagado (' + (result.deleted||0) + ' registos)' : '⚠️ Erro ao apagar');
-    if (result.success) {
-      // Clear caches
-      todosRegistos = [];
-      dashAllDados = [];
-      window._rankingCache = null;
-      // Reload ranking if visible
-      if (document.getElementById('screen-ranking').classList.contains('active')) carregarRanking();
+    const frescos = await _registosFrescos();
+    // SÓ as linhas cuja data (texto) é mesmo deste mês — nunca apanha outro mês
+    const alvos = frescos.filter(f => (f.data||'').slice(0,7) === prefixoMes);
+    if(!alvos.length){ showToast('ℹ️ Não há registos deste mês para apagar'); return; }
+    // Apagar de BAIXO para CIMA para os números de linha não se deslocarem
+    alvos.sort((a,b)=> b._rowIndex - a._rowIndex);
+    let apagados = 0;
+    for(const f of alvos){
+      if(await _apagarLinha(f._rowIndex)) apagados++;
+      await new Promise(r=>setTimeout(r,200));
     }
+    showToast('✓ Mês apagado (' + apagados + ' de ' + alvos.length + ' registos)');
+    todosRegistos = [];
+    dashAllDados = [];
+    window._rankingCache = null;
+    if (document.getElementById('screen-ranking').classList.contains('active')) carregarRanking();
   } catch(e) { showToast('⚠️ Erro ao apagar'); }
 }
 
@@ -4969,14 +5095,24 @@ async function executarApagarColaborador(nome) {
 }
 
 async function executarApagarRegisto(idx) {
+  const alvo = todosRegistos[idx];
+  if(!alvo) return;
   showToast('⏳ A apagar...');
   try {
-    const proxy = 'https://corsproxy.io/?';
-    const url = encodeURIComponent(SHEETS_URL);
-    const res = await fetch(proxy + url, { method:'POST', body: JSON.stringify({action:'apagarRegisto', rowIndex: idx+2}) });
-    const result = await res.json();
-    showToast(result.success ? '✓ Registo apagado' : '⚠️ Erro ao apagar');
+    const frescos = await _registosFrescos(); // ordem REAL da folha agora
+    const alvoData = normalizarData(alvo.data||'');
+    // Localizar a linha exata: mesmo nome + data + todas as categorias iguais
+    const match = frescos.find(f => f.nome===alvo.nome && f.data===alvoData
+      && categorias.every(c => (Number(f[c.key])||0) === (Number(alvo[c.key])||0)));
+    if(!match){
+      showToast('ℹ️ Esse registo já não existe no Sheets');
+    } else {
+      const ok = await _apagarLinha(match._rowIndex);
+      showToast(ok ? '✓ Registo apagado' : '⚠️ Erro ao apagar');
+    }
     todosRegistos.splice(idx, 1);
+    dashAllDados = dashAllDados.filter(d => !(d.nome===alvo.nome && normalizarData(d.data||'')===alvoData));
+    window._rankingCache = null;
     if (dadosTab === 'editar') renderRegistosEditar();
     if (dadosTab === 'colaborador') renderRegistosColaborador();
   } catch(e) { showToast('⚠️ Erro ao apagar'); }
@@ -5044,13 +5180,15 @@ function confirmarGestao() {
     equipa.nomes.sort();
   }
   fecharGestaoModal();
+  salvarRoster();          // grava local + servidor
   renderGestaoLista();
-  showToast('✓ Alteração guardada');
+  showToast('✓ Colaborador guardado');
 }
 
 function eliminarVendedor(nome) {
   if (!confirm('Tens a certeza que queres remover ' + nome + '?')) return;
   equipas.forEach(e => { e.nomes = e.nomes.filter(n => n !== nome); });
+  salvarRoster();          // grava local + servidor
   renderGestaoLista();
   showToast('Vendedor removido');
 }
@@ -7151,8 +7289,7 @@ function renderDesafiosMedalhas() {
 
 
 <script>
-function limparChavesSlot(){var k=[];for(var i=0;i<localStorage.length;i++){var key=localStorage.key(i);if(key&&(key.startsWith('slotDado_')||key.startsWith('slotDiario_')))k.push(key);}k.forEach(function(key){localStorage.removeItem(key);});showToast('✅ '+k.length+' chaves slot removidas');}
-function limparRegistosHoje(){var hoje=localDateStr();var k=[];for(var i=0;i<localStorage.length;i++){var key=localStorage.key(i);if(key&&key.startsWith('registo_')&&key.includes(hoje))k.push(key);}k.forEach(function(key){localStorage.removeItem(key);});try{var h=JSON.parse(localStorage.getItem('historico_local')||'[]');localStorage.setItem('historico_local',JSON.stringify(h.filter(function(d){return d.data!==hoje;})));}catch(e){}showToast('✅ '+k.length+' registos removidos');}
+// (Removidos: limparChavesSlot / limparRegistosHoje — eram ferramentas de teste/manutenção)
 </script>
 
 <script>
@@ -7565,11 +7702,9 @@ function getWeekNum() {
 
 // ── AUTO ACUMULAÇÃO SEMANAL (segunda-feira) ──
 function getMondayKey() {
-  const d = new Date();
-  const day = d.getDay(); // 0=Dom, 1=Seg
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d.setDate(diff));
-  return monday.getFullYear() + '-' + String(monday.getMonth()+1).padStart(2,'0') + '-' + String(monday.getDate()).padStart(2,'0');
+  // Início da semana = DOMINGO (regra fixa Domingo→Sábado). Nome mantido por compatibilidade.
+  const dom = domingoDaSemana(new Date());
+  return dom.getFullYear() + '-' + String(dom.getMonth()+1).padStart(2,'0') + '-' + String(dom.getDate()).padStart(2,'0');
 }
 function checkWeeklyAccumulation() {
   const currentMonday = getMondayKey();
@@ -7610,6 +7745,18 @@ if (!state.lastMondayAccum) state.lastMondayAccum = getMondayKey();
 if (state.jackpot < BASE_JACKPOT && state.weeksNoWinner <= 1) state.jackpot = BASE_JACKPOT;
 // Limpar sempre o jogador anónimo do state carregado — as tentativas são só em memória
 if (state.top3) state.top3 = state.top3.filter(p => p.nome !== '_jogador');
+// ── Correção única: valor do cofre desta semana = €4 e alinhar semana ao DOMINGO ──
+// Regras (já no código): +€2 por semana (WEEKLY_ADD) ao domingo; reset/mínimo = €2 (BASE_JACKPOT).
+(function _cofreCorrecaoUnica(){
+  try {
+    if (localStorage.getItem('cofreAjuste4eur') === '1') return;
+    state.jackpot = 4.00;                    // valor acumulado desta semana
+    state.lastMondayAccum = getMondayKey();  // alinhar à semana atual (domingo) sem somar de novo
+    saveState();
+    localStorage.setItem('cofreAjuste4eur', '1');
+  } catch(e) {}
+})();
+
 // Verificar acumulação semanal automática
 checkWeeklyAccumulation();
 
