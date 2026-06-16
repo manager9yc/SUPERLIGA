@@ -7293,9 +7293,9 @@ function renderDesafiosMedalhas() {
       <br><button class="prog-skip" onclick="fecharProg()">Agora não</button>
     </div>
     <div id="progSucesso" style="display:none">
-      <div style="font-size:40px;margin:2px 0">🍀</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#C9A84C;letter-spacing:1px">Prognóstico registado!</div>
-      <div style="font-size:12px;color:rgba(255,255,255,0.6);margin:6px 0 12px">Boa sorte! 🍬 Estes são os palpites do staff até agora:</div>
+      <div id="progSucIcon" style="font-size:40px;margin:2px 0">🍀</div>
+      <div id="progSucTitulo" style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#C9A84C;letter-spacing:1px">Prognóstico registado!</div>
+      <div id="progSucSub" style="font-size:12px;color:rgba(255,255,255,0.6);margin:6px 0 12px">Boa sorte! 🍬 Estes são os palpites do staff até agora:</div>
       <div id="progLista" style="max-height:230px;overflow-y:auto;text-align:left;margin-bottom:12px"></div>
       <button class="prog-send" onclick="fecharProg()">FECHAR</button>
     </div>
@@ -7324,21 +7324,51 @@ function _tocarHino(){
   }catch(e){}
 }
 
+// Configura o cabeçalho da vista de lista conforme o contexto e mostra os palpites
+function _mostrarPalpites(modo){
+  const icon = document.getElementById('progSucIcon');
+  const tit  = document.getElementById('progSucTitulo');
+  const sub  = document.getElementById('progSucSub');
+  if(modo === 'enviado'){
+    if(icon) icon.textContent = '🍀';
+    if(tit)  tit.textContent  = 'Prognóstico registado!';
+    if(sub)  sub.textContent  = 'Boa sorte! 🍬 Estes são os palpites do staff até agora:';
+  }else{
+    if(icon) icon.textContent = '🏆';
+    if(tit)  tit.textContent  = 'Palpites do staff';
+    if(sub)  sub.textContent  = 'Acompanha os prognósticos de todos. 🇵🇹 vs 🇨🇩';
+  }
+  document.getElementById('progForm').style.display = 'none';
+  document.getElementById('progSucesso').style.display = 'block';
+  _carregarListaPrognosticos();
+}
+
 function mostrarPrognosticoSeAtivo(){
   try{
-    if(Date.now() >= PROG_DEADLINE.getTime()) return;          // prazo terminou
-    if(localStorage.getItem('prognosticoFeito')) return;        // já enviou neste aparelho
+    if(Date.now() >= PROG_DEADLINE.getTime()) return;          // evento terminou
+    const ov = document.getElementById('progOverlay');
+    if(!ov) return;
+    const jaFez = !!localStorage.getItem('prognosticoFeito');
+
+    if(jaFez){
+      // Já enviou → mostra SEMPRE a lista de palpites para acompanhar
+      ov.style.display = 'flex';
+      _mostrarPalpites('acompanhar');
+      return;
+    }
+
+    // Ainda não enviou → mostra o formulário "adivinha o resultado"
     const sel = document.getElementById('progNome');
     if(sel && !sel.options.length){
       const nomes = [...new Set(equipas.flatMap(e=>e.nomes))].sort();
       sel.innerHTML = '<option value="">— Escolhe o teu nome —</option>' + nomes.map(n=>`<option value="${n}">${n}</option>`).join('');
     }
-    // Texto dinâmico: hoje / amanhã
     const q = _progQuando();
     const e1 = document.getElementById('progQuandoJogo'); if(e1) e1.textContent = q;
     const e2 = document.getElementById('progQuandoFecha'); if(e2) e2.textContent = q;
-    const ov = document.getElementById('progOverlay');
-    if(ov) ov.style.display = 'flex';
+    document.getElementById('progForm').style.display = 'block';
+    document.getElementById('progSucesso').style.display = 'none';
+    ov.style.display = 'flex';
     _tocarHino();
   }catch(e){}
 }
@@ -7394,16 +7424,12 @@ async function _progSubmeter(){
   if(jaExistia){
     try{ localStorage.setItem('prognosticoFeito','1'); }catch(_){}
     showToast('🚫 ' + nome.split(' ')[0] + ' já tinha enviado — aqui estão os palpites');
-    document.getElementById('progForm').style.display = 'none';
-    document.getElementById('progSucesso').style.display = 'block';
-    _carregarListaPrognosticos();
+    _mostrarPalpites('acompanhar');
     return;
   }
   if(ok){
     try{ localStorage.setItem('prognosticoFeito','1'); }catch(_){}
-    document.getElementById('progForm').style.display = 'none';
-    document.getElementById('progSucesso').style.display = 'block';
-    _carregarListaPrognosticos();   // mostra os palpites do staff
+    _mostrarPalpites('enviado');   // mostra os palpites do staff
   }else{
     btn.disabled = false; btn.textContent = 'ENVIAR PROGNÓSTICO';
     showToast('⚠️ Não consegui enviar. Tenta de novo.');
