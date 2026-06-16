@@ -7324,8 +7324,8 @@ function _tocarHino(){
   }catch(e){}
 }
 
-// Configura o cabeçalho da vista de lista conforme o contexto e mostra os palpites
-function _mostrarPalpites(modo){
+// Mostra a vista de lista. modo: 'enviado' | 'acompanhar'. list opcional (pré-carregada).
+function _mostrarPalpites(modo, list){
   const icon = document.getElementById('progSucIcon');
   const tit  = document.getElementById('progSucTitulo');
   const sub  = document.getElementById('progSucSub');
@@ -7334,30 +7334,43 @@ function _mostrarPalpites(modo){
     if(tit)  tit.textContent  = 'Prognóstico registado!';
     if(sub)  sub.textContent  = 'Boa sorte! 🍬 Estes são os palpites do staff até agora:';
   }else{
-    if(icon) icon.textContent = '🏆';
-    if(tit)  tit.textContent  = 'Palpites do staff';
-    if(sub)  sub.textContent  = 'Acompanha os prognósticos de todos. 🇵🇹 vs 🇨🇩';
+    if(icon) icon.textContent = '✅';
+    if(tit)  tit.textContent  = 'Já fizeste o teu palpite';
+    if(sub)  sub.textContent  = 'Acompanha aqui os prognósticos de todo o staff 🇵🇹 vs 🇨🇩';
   }
   document.getElementById('progForm').style.display = 'none';
   document.getElementById('progSucesso').style.display = 'block';
-  _carregarListaPrognosticos();
+  if(Array.isArray(list)){ _renderPrognosticos(list, _meuNomeFeed()); }
+  else { _carregarListaPrognosticos(); }
 }
 
-function mostrarPrognosticoSeAtivo(){
+async function mostrarPrognosticoSeAtivo(){
   try{
-    if(Date.now() >= PROG_DEADLINE.getTime()) return;          // evento terminou
+    if(Date.now() >= PROG_DEADLINE.getTime()) return;   // evento terminou
     const ov = document.getElementById('progOverlay');
     if(!ov) return;
-    const jaFez = !!localStorage.getItem('prognosticoFeito');
+    const meuNome = _meuNomeFeed();
+    let jaFez = !!localStorage.getItem('prognosticoFeito');
+
+    // Pergunta ao servidor (também serve para mostrar a lista a seguir)
+    const list = await _fetchPrognosticos();
+    // Deteção robusta: se o meu nome já está na lista do servidor, já palpitei
+    if(!jaFez && meuNome && Array.isArray(list)){
+      const meu = String(meuNome).trim().toLowerCase();
+      if(list.some(function(p){ return String(p.nome||'').trim().toLowerCase() === meu; })){
+        jaFez = true;
+        try{ localStorage.setItem('prognosticoFeito','1'); }catch(_){}
+      }
+    }
 
     if(jaFez){
-      // Já enviou → mostra SEMPRE a lista de palpites para acompanhar
+      // Já palpitou → só a lista, com mensagem de já feito (sem hino)
+      _mostrarPalpites('acompanhar', list);
       ov.style.display = 'flex';
-      _mostrarPalpites('acompanhar');
       return;
     }
 
-    // Ainda não enviou → mostra o formulário "adivinha o resultado"
+    // Ainda não palpitou → formulário "adivinha o resultado" (com hino)
     const sel = document.getElementById('progNome');
     if(sel && !sel.options.length){
       const nomes = [...new Set(equipas.flatMap(e=>e.nomes))].sort();
@@ -7374,27 +7387,41 @@ function mostrarPrognosticoSeAtivo(){
 }
 function fecharProg(){ const ov=document.getElementById('progOverlay'); if(ov) ov.style.display='none'; }
 
-// Mostra todos os palpites já enviados (só visível DEPOIS de cada um enviar o seu)
-async function _carregarListaPrognosticos(){
-  const cont = document.getElementById('progLista');
-  if(cont) cont.innerHTML = '<div style="color:rgba(255,255,255,0.5);font-size:13px;text-align:center;padding:10px">A carregar palpites...</div>';
-  let list = null;
+function _meuNomeFeed(){ try{ return localStorage.getItem('feedUserName') || ''; }catch(e){ return ''; } }
+
+// Busca os palpites no servidor (direto + proxy)
+async function _fetchPrognosticos(){
   const url = ROSTER_URL + '?action=getPrognosticos';
-  try{ const r = await fetch(url, {cache:'no-store'}); list = await r.json(); }catch(e){}
-  if(!Array.isArray(list)){
-    try{ const r2 = await fetch('https://corsproxy.io/?' + encodeURIComponent(url), {cache:'no-store'}); list = await r2.json(); }catch(e2){}
-  }
+  try{ const r = await fetch(url, {cache:'no-store'}); const j = await r.json(); if(Array.isArray(j)) return j; }catch(e){}
+  try{ const r2 = await fetch('https://corsproxy.io/?' + encodeURIComponent(url), {cache:'no-store'}); const j2 = await r2.json(); if(Array.isArray(j2)) return j2; }catch(e2){}
+  return null;
+}
+
+// Desenha a lista de palpites (destaca o do próprio operador)
+function _renderPrognosticos(list, meuNome){
+  const cont = document.getElementById('progLista');
   if(!cont) return;
   if(!Array.isArray(list) || !list.length){
     cont.innerHTML = '<div style="color:rgba(255,255,255,0.5);font-size:13px;text-align:center;padding:10px">Ainda não há palpites.</div>';
     return;
   }
+  const meu = String(meuNome||'').trim().toLowerCase();
   cont.innerHTML = list.map(function(p){
-    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.18);border-radius:8px;margin-bottom:6px">' +
-      '<span style="font-size:13px;color:#fff">' + p.nome + '</span>' +
+    const ehMeu = meu && String(p.nome||'').trim().toLowerCase() === meu;
+    const bg = ehMeu ? 'rgba(201,168,76,0.20)' : 'rgba(255,255,255,0.04)';
+    const bd = ehMeu ? 'rgba(201,168,76,0.7)' : 'rgba(201,168,76,0.18)';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:' + bg + ';border:1px solid ' + bd + ';border-radius:8px;margin-bottom:6px">' +
+      '<span style="font-size:13px;color:#fff">' + p.nome + (ehMeu ? ' <b style="color:#C9A84C">(tu)</b>' : '') + '</span>' +
       '<span style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;color:#C9A84C;white-space:nowrap">🇵🇹 ' + p.casa + ' – ' + p.fora + ' 🇨🇩</span>' +
     '</div>';
   }).join('');
+}
+
+async function _carregarListaPrognosticos(meuNome){
+  const cont = document.getElementById('progLista');
+  if(cont) cont.innerHTML = '<div style="color:rgba(255,255,255,0.5);font-size:13px;text-align:center;padding:10px">A carregar palpites...</div>';
+  const list = await _fetchPrognosticos();
+  _renderPrognosticos(list, meuNome || _meuNomeFeed());
 }
 
 async function _progSubmeter(){
@@ -7405,6 +7432,8 @@ async function _progSubmeter(){
   if(casa==='' || fora===''){ showToast('⚠️ Preenche o resultado (Portugal e Congo)'); return; }
   if(Date.now() >= PROG_DEADLINE.getTime()){ showToast('⏰ Os prognósticos já fecharam'); fecharProg(); return; }
   const payload = { action:'savePrognostico', nome, casa:Number(casa), fora:Number(fora) };
+  // Guardar a identidade para deteção fiável em aberturas futuras (mesmo se a confirmação falhar)
+  try{ if(!_meuNomeFeed()) localStorage.setItem('feedUserName', nome); }catch(_){}
   const btn = document.getElementById('progBtn'); btn.disabled = true; btn.textContent = 'A enviar...';
   let ok=false, jaExistia=false;
   // tentativa direta + proxy (para conseguir ler a resposta do servidor)
