@@ -7245,6 +7245,120 @@ function renderDesafiosMedalhas() {
   </div>
 </div>
 
+<!-- ═══ POPUP PROGNÓSTICO PORTUGAL x CONGO ═══ -->
+<style>
+#progOverlay{display:none;position:fixed;inset:0;z-index:99500;background:rgba(0,0,0,0.88);align-items:center;justify-content:center;padding:18px;}
+#progCard{background:linear-gradient(160deg,#13110a,#0a0904);border:2px solid rgba(201,168,76,0.55);border-radius:22px;padding:22px 20px;width:100%;max-width:380px;text-align:center;box-shadow:0 0 60px rgba(201,168,76,0.18),0 20px 60px rgba(0,0,0,0.9);animation:bounceIn .4s cubic-bezier(0.34,1.56,0.64,1)}
+#progCard .prog-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:rgba(201,168,76,0.6);margin-bottom:6px}
+#progCard .prog-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:#C9A84C;line-height:1;margin-bottom:14px}
+#progCard .prog-teams{display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 14px}
+#progCard .prog-team{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+#progCard .prog-flag{font-size:46px;line-height:1}
+#progCard .prog-tname{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;color:#fff;text-transform:uppercase}
+#progCard .prog-vs{font-family:'Bebas Neue',sans-serif;font-size:20px;color:rgba(255,255,255,0.4)}
+#progCard .prog-desc{font-size:13px;color:rgba(255,255,255,0.7);line-height:1.45;margin-bottom:6px}
+#progCard .prog-prize{font-size:13px;color:#F5D87E;font-weight:600;margin-bottom:14px}
+#progCard select,#progCard input{background:#1a1508;border:1px solid rgba(201,168,76,0.35);border-radius:10px;color:#fff;font-family:'DM Sans',sans-serif;font-size:15px;outline:none}
+#progCard .prog-score{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0}
+#progCard .prog-score .sc{display:flex;flex-direction:column;align-items:center;gap:4px}
+#progCard .prog-score .sc-lbl{font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.5);text-transform:uppercase}
+#progCard .prog-score input{width:62px;height:58px;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:32px}
+#progCard .prog-score .sc-x{font-family:'Bebas Neue',sans-serif;font-size:26px;color:rgba(255,255,255,0.4);align-self:flex-end;padding-bottom:8px}
+#progCard #progNome{width:100%;padding:11px 12px;margin-bottom:4px}
+#progCard .prog-send{width:100%;margin-top:12px;background:linear-gradient(135deg,#a07820,#C9A84C,#F5D87E);border:none;border-radius:12px;padding:14px;color:#0a0904;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;cursor:pointer;box-shadow:0 4px 20px rgba(201,168,76,0.4)}
+#progCard .prog-skip{background:none;border:none;color:rgba(255,255,255,0.4);font-size:12px;margin-top:10px;cursor:pointer;text-decoration:underline}
+#progCard .prog-deadline{font-size:11px;color:rgba(255,255,255,0.35);margin-top:8px}
+</style>
+<div id="progOverlay">
+  <div id="progCard">
+    <div class="prog-eyebrow">⚽ Prognóstico do Jogo</div>
+    <div class="prog-title">Adivinha o resultado</div>
+    <div class="prog-teams">
+      <div class="prog-team"><span class="prog-flag">🇵🇹</span><span class="prog-tname">Portugal</span></div>
+      <span class="prog-vs">VS</span>
+      <div class="prog-team"><span class="prog-flag">🇨🇩</span><span class="prog-tname">Congo</span></div>
+    </div>
+    <div id="progForm">
+      <div class="prog-desc">Diz qual vai ser o <b>resultado exato</b> do jogo de amanhã. Cada operador só tem <b>UMA</b> tentativa!</div>
+      <div class="prog-prize">🍬 Quem acertar ganha um saco de gomas!</div>
+      <select id="progNome"></select>
+      <div class="prog-score">
+        <div class="sc"><span class="sc-lbl">🇵🇹 Portugal</span><input type="number" id="progCasa" min="0" max="20" inputmode="numeric" placeholder="0"></div>
+        <span class="sc-x">–</span>
+        <div class="sc"><span class="sc-lbl">🇨🇩 Congo</span><input type="number" id="progFora" min="0" max="20" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <button id="progBtn" class="prog-send" onclick="_progSubmeter()">ENVIAR PROGNÓSTICO</button>
+      <div class="prog-deadline">Fecha amanhã às 20:00</div>
+      <br><button class="prog-skip" onclick="fecharProg()">Agora não</button>
+    </div>
+    <div id="progSucesso" style="display:none">
+      <div style="font-size:52px;margin:6px 0">🍀</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:#C9A84C;letter-spacing:1px">Prognóstico registado!</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.65);margin:8px 0 16px">Boa sorte! Se acertares, são gomas para ti. 🍬</div>
+      <button class="prog-send" onclick="fecharProg()">FECHAR</button>
+    </div>
+  </div>
+</div>
+<script>
+// Prazo: de agora até amanhã (17 jun 2026) às 20:00 — depois o popup deixa de aparecer
+const PROG_DEADLINE = new Date(2026, 5, 17, 20, 0, 0);
+
+function mostrarPrognosticoSeAtivo(){
+  try{
+    if(Date.now() >= PROG_DEADLINE.getTime()) return;          // prazo terminou
+    if(localStorage.getItem('prognosticoFeito')) return;        // já enviou neste aparelho
+    const sel = document.getElementById('progNome');
+    if(sel && !sel.options.length){
+      const nomes = [...new Set(equipas.flatMap(e=>e.nomes))].sort();
+      sel.innerHTML = '<option value="">— Escolhe o teu nome —</option>' + nomes.map(n=>`<option value="${n}">${n}</option>`).join('');
+    }
+    const ov = document.getElementById('progOverlay');
+    if(ov) ov.style.display = 'flex';
+  }catch(e){}
+}
+function fecharProg(){ const ov=document.getElementById('progOverlay'); if(ov) ov.style.display='none'; }
+
+async function _progSubmeter(){
+  const nome = document.getElementById('progNome').value;
+  const casa = document.getElementById('progCasa').value;
+  const fora = document.getElementById('progFora').value;
+  if(!nome){ showToast('⚠️ Escolhe o teu nome'); return; }
+  if(casa==='' || fora===''){ showToast('⚠️ Preenche o resultado (Portugal e Congo)'); return; }
+  if(Date.now() >= PROG_DEADLINE.getTime()){ showToast('⏰ Os prognósticos já fecharam'); fecharProg(); return; }
+  const payload = { action:'savePrognostico', nome, casa:Number(casa), fora:Number(fora) };
+  const btn = document.getElementById('progBtn'); btn.disabled = true; btn.textContent = 'A enviar...';
+  let ok=false, jaExistia=false;
+  // tentativa direta + proxy (para conseguir ler a resposta do servidor)
+  try{
+    const res = await fetch(ROSTER_URL, { method:'POST', body: JSON.stringify(payload) });
+    const r = await res.json().catch(()=>null);
+    if(r){ ok = r.success===true; jaExistia = r.jaExistia===true; }
+  }catch(e){}
+  if(!ok && !jaExistia){
+    try{
+      const proxy = 'https://corsproxy.io/?' + encodeURIComponent(ROSTER_URL);
+      const res2 = await fetch(proxy, { method:'POST', body: JSON.stringify(payload) });
+      const r2 = await res2.json().catch(()=>null);
+      if(r2){ ok = r2.success===true; jaExistia = r2.jaExistia===true; }
+    }catch(e2){}
+  }
+  if(jaExistia){
+    try{ localStorage.setItem('prognosticoFeito','1'); }catch(_){}
+    showToast('🚫 ' + nome.split(' ')[0] + ' já enviou um prognóstico');
+    fecharProg(); return;
+  }
+  if(ok){
+    try{ localStorage.setItem('prognosticoFeito','1'); }catch(_){}
+    document.getElementById('progForm').style.display = 'none';
+    document.getElementById('progSucesso').style.display = 'block';
+  }else{
+    btn.disabled = false; btn.textContent = 'ENVIAR PROGNÓSTICO';
+    showToast('⚠️ Não consegui enviar. Tenta de novo.');
+  }
+}
+document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarPrognosticoSeAtivo, 1800); });
+</script>
+
 <!-- CONFIRM MODAL -->
 <div class="confirm-modal" id="confirmModal">
   <div class="confirm-box">
