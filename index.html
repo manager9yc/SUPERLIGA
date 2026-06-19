@@ -7528,7 +7528,7 @@ document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarProg
 <div id="adesoesOverlay">
   <div id="adesoesCard">
     <div class="ad-eyebrow">📣 Resumo de ontem</div>
-    <div class="ad-title">Os melhores do dia</div>
+    <div class="ad-title">Os melhores de ontem</div>
     <div class="ad-data" id="adData"></div>
     <div class="ad-bloco destaque">
       <div class="ad-bloco-tit">🎟️ Adesões SZ Club</div>
@@ -7574,8 +7574,6 @@ async function mostrarResumoAdesoes(){
   try{
     const pov = document.getElementById('progOverlay');
     if(pov && pov.style.display === 'flex') return;        // não sobrepor ao popup do prognóstico
-    const hojeKey = _adesStr(new Date());
-    if(localStorage.getItem('adesoesVisto') === hojeKey) return;  // 1x por dia
     const ontem = new Date(); ontem.setDate(ontem.getDate()-1);
     const ontemStr = _adesStr(ontem);
     const dados = await _adesFetchTodos();
@@ -7586,7 +7584,6 @@ async function mostrarResumoAdesoes(){
     _adesRenderBloco('adSZ', _adesTop(doOntem,'szclub',3));
     _adesRenderBloco('adOnlines', _adesTop(doOntem,'onlines',3));
     _adesRenderBloco('adSprays', _adesTop(doOntem,'sprays',3));
-    localStorage.setItem('adesoesVisto', hojeKey);
     document.getElementById('adesoesOverlay').style.display = 'flex';
   }catch(e){}
 }
