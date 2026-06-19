@@ -3284,13 +3284,7 @@ function fecharSplash(){
   s.classList.add('out');
   setTimeout(()=>{
     s.classList.add('hidden');
-    if (typeof feedFabToggle === 'function') {
-      feedFabToggle();
-    } else if (typeof feedInit === 'function') {
-      const feedScreen = document.getElementById('screen-feed');
-      if (feedScreen) feedScreen.classList.add('active');
-      feedInit();
-    }
+    // BALNEÁRIO removido — já não abre automaticamente após o splash
     // Efeito de entrada bonito após splash
     const rankBtn = document.getElementById('navBtnRanking');
     if (rankBtn) { goTo('ranking', rankBtn); }
@@ -7277,7 +7271,7 @@ function renderDesafiosMedalhas() {
     <div class="prog-teams">
       <div class="prog-team"><span class="prog-flag">🇵🇹</span><span class="prog-tname">Portugal</span></div>
       <span class="prog-vs">VS</span>
-      <div class="prog-team"><span class="prog-flag">🇨🇩</span><span class="prog-tname">Congo</span></div>
+      <div class="prog-team"><span class="prog-flag" id="progAdvFlag">🇨🇩</span><span class="prog-tname" id="progAdvNome">Congo</span></div>
     </div>
     <div id="progForm">
       <div class="prog-desc">Diz qual vai ser o <b>resultado exato</b> do jogo de <span id="progQuandoJogo">amanhã</span>. Cada operador só tem <b>UMA</b> tentativa!</div>
@@ -7286,10 +7280,10 @@ function renderDesafiosMedalhas() {
       <div class="prog-score">
         <div class="sc"><span class="sc-lbl">🇵🇹 Portugal</span><input type="number" id="progCasa" min="0" max="20" inputmode="numeric" placeholder="0"></div>
         <span class="sc-x">–</span>
-        <div class="sc"><span class="sc-lbl">🇨🇩 Congo</span><input type="number" id="progFora" min="0" max="20" inputmode="numeric" placeholder="0"></div>
+        <div class="sc"><span class="sc-lbl" id="progScoreLblFora">🇨🇩 Congo</span><input type="number" id="progFora" min="0" max="20" inputmode="numeric" placeholder="0"></div>
       </div>
       <button id="progBtn" class="prog-send" onclick="_progSubmeter()">ENVIAR PROGNÓSTICO</button>
-      <div class="prog-deadline">Fecha <span id="progQuandoFecha">amanhã</span> às 18:00</div>
+      <div class="prog-deadline">Fecha <span id="progQuandoFecha">amanhã</span> às <span id="progHoraFecha">18:00</span></div>
       <br><button class="prog-skip" onclick="fecharProg()">Agora não</button>
     </div>
     <div id="progSucesso" style="display:none">
@@ -7302,18 +7296,33 @@ function renderDesafiosMedalhas() {
   </div>
 </div>
 <script>
-// Dia do jogo: 17 jun 2026. Prazo dos palpites: fecha às 18:00 desse dia.
-const PROG_JOGO = new Date(2026, 5, 17);
-const PROG_DEADLINE = new Date(2026, 5, 17, 18, 0, 0);
-// Depois de fechar, mostra o RESULTADO FINAL hoje (17) e amanhã (18); a partir de 19 jun deixa de aparecer.
-const RESULT_DEADLINE = new Date(2026, 5, 19, 0, 0, 0);
-// Resultado real do jogo (Portugal x Congo)
-const RESULT_CASA = 1, RESULT_FORA = 1;
+// ════════ JOGOS DE PROGNÓSTICO (configuração por data) ════════
+// Devolve o jogo ativo conforme a data, ou null se não houver nada a mostrar.
+function _jogoAtivo(){
+  const t = Date.now();
+  // JOGO 1 — Portugal x Congo (terminado). Mostra o RESULTADO até 19 jun.
+  if(t >= new Date(2026,5,17,18,0,0).getTime() && t < new Date(2026,5,19,0,0,0).getTime()){
+    return { id:'', adversario:'Congo', flag:'🇨🇩', fase:'resultado',
+      resultado:{ casa:1, fora:1,
+        texto:'Ninguém acertou o resultado exato 😅<br>Mais perto (2–1): <b>Maria Coelho</b>, <b>Ricardo Esteves</b> e <b>Yorky Reyes</b>.' } };
+  }
+  // JOGO 2 — Portugal x Uzbequistão. Abre SEGUNDA 22 jun; fecha TERÇA 23 jun às 20:00; resultado até 26 jun.
+  if(t >= new Date(2026,5,22,0,0,0).getTime() && t < new Date(2026,5,26,0,0,0).getTime()){
+    const fechado = t >= new Date(2026,5,23,20,0,0).getTime();
+    return { id:'uzb-2026-06-23', adversario:'Uzbequistão', flag:'🇺🇿',
+      fase: fechado ? 'resultado' : 'aberto', quando:'terça-feira', horaFecho:'20:00',
+      resultado: null /* quando souberes: { casa, fora, texto } */ };
+  }
+  return null;
+}
 
-// Devolve "hoje" se já estamos no dia do jogo, senão "amanhã"
-function _progQuando(){
-  const f = d => d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
-  return f(new Date()) === f(PROG_JOGO) ? 'hoje' : 'amanhã';
+let _progJogoAtual = null;  // jogo ativo (para o envio saber a etiqueta)
+
+// Atualiza bandeiras/nome do adversário no popup
+function _setTeams(jogo){
+  const f = document.getElementById('progAdvFlag'); if(f) f.textContent = jogo.flag;
+  const n = document.getElementById('progAdvNome'); if(n) n.textContent = jogo.adversario;
+  const l = document.getElementById('progScoreLblFora'); if(l) l.textContent = jogo.flag + ' ' + jogo.adversario;
 }
 
 // Toca um excerto de "A Portuguesa" (ficheiro embutido como áudio)
@@ -7340,7 +7349,7 @@ function _mostrarPalpites(modo, list){
   }else{
     if(icon) icon.textContent = '✅';
     if(tit)  tit.textContent  = 'Já fizeste o teu palpite';
-    if(sub)  sub.textContent  = 'Acompanha aqui os prognósticos de todo o staff 🇵🇹 vs 🇨🇩';
+    if(sub)  sub.textContent  = 'Acompanha aqui os prognósticos de todo o staff ⚽';
   }
   document.getElementById('progForm').style.display = 'none';
   document.getElementById('progSucesso').style.display = 'block';
@@ -7348,13 +7357,14 @@ function _mostrarPalpites(modo, list){
   else { _carregarListaPrognosticos(); }
 }
 
-// Vista de RESULTADO FINAL (depois de fecharem os palpites)
-function _mostrarResultadoFinal(){
-  const tp = document.getElementById('progTituloPrincipal'); if(tp) tp.textContent = 'Resultado final';
-  const icon = document.getElementById('progSucIcon'); if(icon) icon.textContent = '🏁';
-  const tit = document.getElementById('progSucTitulo'); if(tit) tit.textContent = 'Portugal ' + RESULT_CASA + ' – ' + RESULT_FORA + ' Congo';
+// Vista de RESULTADO / palpites fechados (por jogo)
+function _mostrarResultadoFinal(jogo){
+  const tp = document.getElementById('progTituloPrincipal'); if(tp) tp.textContent = jogo.resultado ? 'Resultado final' : 'Palpites fechados';
+  const icon = document.getElementById('progSucIcon'); if(icon) icon.textContent = jogo.resultado ? '🏁' : '⏳';
+  const tit = document.getElementById('progSucTitulo');
+  if(tit) tit.textContent = jogo.resultado ? ('Portugal ' + jogo.resultado.casa + ' – ' + jogo.resultado.fora + ' ' + jogo.adversario) : 'Palpites encerrados';
   const sub = document.getElementById('progSucSub');
-  if(sub) sub.innerHTML = 'Ninguém acertou o resultado exato 😅<br>Mais perto (2–1): <b>Maria Coelho</b>, <b>Ricardo Esteves</b> e <b>Yorky Reyes</b>.';
+  if(sub) sub.innerHTML = jogo.resultado ? jogo.resultado.texto : ('O jogo é ' + (jogo.quando || 'em breve') + '. Resultado e vencedores em breve! 🍬');
   document.getElementById('progForm').style.display = 'none';
   document.getElementById('progSucesso').style.display = 'block';
   _carregarListaPrognosticos();
@@ -7362,46 +7372,47 @@ function _mostrarResultadoFinal(){
 
 async function mostrarPrognosticoSeAtivo(){
   try{
-    const agora = Date.now();
-    if(agora >= RESULT_DEADLINE.getTime()) return;   // já passou o período de mostrar (a partir de 19 jun)
+    const jogo = _jogoAtivo();
+    if(!jogo) return;                       // fora de qualquer janela → não aparece
+    _progJogoAtual = jogo;
     const ov = document.getElementById('progOverlay');
     if(!ov) return;
-    // Palpites já fecharam → mostrar o RESULTADO FINAL (hoje e amanhã)
-    if(agora >= PROG_DEADLINE.getTime()){
-      _mostrarResultadoFinal();
+    _setTeams(jogo);
+
+    // Jogo já fechado → mostra resultado (ou "em breve")
+    if(jogo.fase === 'resultado'){
+      _mostrarResultadoFinal(jogo);
       ov.style.display = 'flex';
       return;
     }
-    const meuNome = _meuNomeFeed();
-    let jaFez = !!localStorage.getItem('prognosticoFeito');
 
-    // Pergunta ao servidor (também serve para mostrar a lista a seguir)
-    const list = await _fetchPrognosticos();
-    // Deteção robusta: se o meu nome já está na lista do servidor, já palpitei
+    // Jogo aberto → form (se não palpitou) ou lista (se já palpitou)
+    const KEY = 'prognosticoFeito_' + jogo.id;
+    const meuNome = _meuNomeFeed();
+    const list = await _fetchPrognosticos(jogo.id);
+    let jaFez = !!localStorage.getItem(KEY);
     if(!jaFez && meuNome && Array.isArray(list)){
       const meu = String(meuNome).trim().toLowerCase();
       if(list.some(function(p){ return String(p.nome||'').trim().toLowerCase() === meu; })){
-        jaFez = true;
-        try{ localStorage.setItem('prognosticoFeito','1'); }catch(_){}
+        jaFez = true; try{ localStorage.setItem(KEY,'1'); }catch(_){}
       }
     }
-
     if(jaFez){
-      // Já palpitou → só a lista, com mensagem de já feito (sem hino)
       _mostrarPalpites('acompanhar', list);
       ov.style.display = 'flex';
       return;
     }
 
-    // Ainda não palpitou → formulário "adivinha o resultado" (com hino)
+    // Formulário "adivinha o resultado" (com hino)
+    const tp = document.getElementById('progTituloPrincipal'); if(tp) tp.textContent = 'Adivinha o resultado';
     const sel = document.getElementById('progNome');
     if(sel && !sel.options.length){
       const nomes = [...new Set(equipas.flatMap(e=>e.nomes))].sort();
       sel.innerHTML = '<option value="">— Escolhe o teu nome —</option>' + nomes.map(n=>`<option value="${n}">${n}</option>`).join('');
     }
-    const q = _progQuando();
-    const e1 = document.getElementById('progQuandoJogo'); if(e1) e1.textContent = q;
-    const e2 = document.getElementById('progQuandoFecha'); if(e2) e2.textContent = q;
+    const e1 = document.getElementById('progQuandoJogo'); if(e1) e1.textContent = jogo.quando || '';
+    const e2 = document.getElementById('progQuandoFecha'); if(e2) e2.textContent = jogo.quando || '';
+    const e3 = document.getElementById('progHoraFecha'); if(e3) e3.textContent = jogo.horaFecho || '';
     document.getElementById('progForm').style.display = 'block';
     document.getElementById('progSucesso').style.display = 'none';
     ov.style.display = 'flex';
@@ -7412,9 +7423,10 @@ function fecharProg(){ const ov=document.getElementById('progOverlay'); if(ov) o
 
 function _meuNomeFeed(){ try{ return localStorage.getItem('feedUserName') || ''; }catch(e){ return ''; } }
 
-// Busca os palpites no servidor (direto + proxy)
-async function _fetchPrognosticos(){
-  const url = ROSTER_URL + '?action=getPrognosticos';
+// Busca os palpites no servidor (direto + proxy), filtrados pelo jogo
+async function _fetchPrognosticos(jogoId){
+  let url = ROSTER_URL + '?action=getPrognosticos';
+  if(jogoId) url += '&jogo=' + encodeURIComponent(jogoId);
   try{ const r = await fetch(url, {cache:'no-store'}); const j = await r.json(); if(Array.isArray(j)) return j; }catch(e){}
   try{ const r2 = await fetch('https://corsproxy.io/?' + encodeURIComponent(url), {cache:'no-store'}); const j2 = await r2.json(); if(Array.isArray(j2)) return j2; }catch(e2){}
   return null;
@@ -7435,7 +7447,7 @@ function _renderPrognosticos(list, meuNome){
     const bd = ehMeu ? 'rgba(201,168,76,0.7)' : 'rgba(201,168,76,0.18)';
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:' + bg + ';border:1px solid ' + bd + ';border-radius:8px;margin-bottom:6px">' +
       '<span style="font-size:13px;color:#fff">' + p.nome + (ehMeu ? ' <b style="color:#C9A84C">(tu)</b>' : '') + '</span>' +
-      '<span style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;color:#C9A84C;white-space:nowrap">🇵🇹 ' + p.casa + ' – ' + p.fora + ' 🇨🇩</span>' +
+      '<span style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;color:#C9A84C;white-space:nowrap">🇵🇹 ' + p.casa + ' – ' + p.fora + ' ' + ((_progJogoAtual && _progJogoAtual.flag) || '🇨🇩') + '</span>' +
     '</div>';
   }).join('');
 }
@@ -7443,18 +7455,20 @@ function _renderPrognosticos(list, meuNome){
 async function _carregarListaPrognosticos(meuNome){
   const cont = document.getElementById('progLista');
   if(cont) cont.innerHTML = '<div style="color:rgba(255,255,255,0.5);font-size:13px;text-align:center;padding:10px">A carregar palpites...</div>';
-  const list = await _fetchPrognosticos();
+  const list = await _fetchPrognosticos(_progJogoAtual ? _progJogoAtual.id : '');
   _renderPrognosticos(list, meuNome || _meuNomeFeed());
 }
 
 async function _progSubmeter(){
+  const jogo = _progJogoAtual || _jogoAtivo();
+  if(!jogo || jogo.fase !== 'aberto'){ showToast('⏰ Os palpites não estão abertos'); fecharProg(); return; }
   const nome = document.getElementById('progNome').value;
   const casa = document.getElementById('progCasa').value;
   const fora = document.getElementById('progFora').value;
   if(!nome){ showToast('⚠️ Escolhe o teu nome'); return; }
-  if(casa==='' || fora===''){ showToast('⚠️ Preenche o resultado (Portugal e Congo)'); return; }
-  if(Date.now() >= PROG_DEADLINE.getTime()){ showToast('⏰ Os prognósticos já fecharam'); fecharProg(); return; }
-  const payload = { action:'savePrognostico', nome, casa:Number(casa), fora:Number(fora) };
+  if(casa==='' || fora===''){ showToast('⚠️ Preenche o resultado'); return; }
+  const KEY = 'prognosticoFeito_' + jogo.id;
+  const payload = { action:'savePrognostico', nome, casa:Number(casa), fora:Number(fora), jogo: jogo.id };
   // Guardar a identidade para deteção fiável em aberturas futuras (mesmo se a confirmação falhar)
   try{ if(!_meuNomeFeed()) localStorage.setItem('feedUserName', nome); }catch(_){}
   const btn = document.getElementById('progBtn'); btn.disabled = true; btn.textContent = 'A enviar...';
@@ -7474,13 +7488,13 @@ async function _progSubmeter(){
     }catch(e2){}
   }
   if(jaExistia){
-    try{ localStorage.setItem('prognosticoFeito','1'); }catch(_){}
+    try{ localStorage.setItem(KEY,'1'); }catch(_){}
     showToast('🚫 ' + nome.split(' ')[0] + ' já tinha enviado — aqui estão os palpites');
     _mostrarPalpites('acompanhar');
     return;
   }
   if(ok){
-    try{ localStorage.setItem('prognosticoFeito','1'); }catch(_){}
+    try{ localStorage.setItem(KEY,'1'); }catch(_){}
     _mostrarPalpites('enviado');   // mostra os palpites do staff
   }else{
     btn.disabled = false; btn.textContent = 'ENVIAR PROGNÓSTICO';
@@ -7488,6 +7502,96 @@ async function _progSubmeter(){
   }
 }
 document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarPrognosticoSeAtivo, 1800); });
+</script>
+
+<!-- ═══ POPUP DIÁRIO — RESUMO DE ONTEM (SZClub / Onlines / Sprays) ═══ -->
+<style>
+#adesoesOverlay{display:none;position:fixed;inset:0;z-index:99400;background:rgba(0,0,0,0.88);align-items:center;justify-content:center;padding:18px;}
+#adesoesCard{background:linear-gradient(160deg,#13110a,#0a0904);border:2px solid rgba(201,168,76,0.5);border-radius:22px;padding:20px 18px;width:100%;max-width:380px;text-align:center;box-shadow:0 0 60px rgba(201,168,76,0.18),0 20px 60px rgba(0,0,0,0.9);animation:bounceIn .4s cubic-bezier(0.34,1.56,0.64,1)}
+#adesoesCard .ad-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:rgba(201,168,76,0.6)}
+#adesoesCard .ad-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:#C9A84C;line-height:1;margin-bottom:2px}
+#adesoesCard .ad-data{font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:14px}
+#adesoesCard .ad-bloco{margin-bottom:14px}
+#adesoesCard .ad-bloco-tit{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#fff;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px}
+#adesoesCard .ad-bloco.destaque .ad-bloco-tit{color:#F5D87E;font-size:15px}
+#adesoesCard .ad-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.18);border-radius:8px;margin-bottom:5px}
+#adesoesCard .ad-bloco.destaque .ad-row{background:rgba(201,168,76,0.10);border-color:rgba(201,168,76,0.35)}
+#adesoesCard .ad-nome{font-size:13px;color:#fff;text-align:left}
+#adesoesCard .ad-val{font-family:'Bebas Neue',sans-serif;font-size:18px;color:#C9A84C;white-space:nowrap}
+#adesoesCard .ad-sec{display:flex;gap:10px}
+#adesoesCard .ad-sec .ad-bloco{flex:1;margin-bottom:0}
+#adesoesCard .ad-sec .ad-nome{font-size:11px}
+#adesoesCard .ad-sec .ad-val{font-size:15px}
+#adesoesCard .ad-vazio{font-size:12px;color:rgba(255,255,255,0.4);padding:6px}
+#adesoesCard .ad-fechar{width:100%;margin-top:14px;background:linear-gradient(135deg,#a07820,#C9A84C,#F5D87E);border:none;border-radius:12px;padding:13px;color:#0a0904;font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:2px;cursor:pointer}
+</style>
+<div id="adesoesOverlay">
+  <div id="adesoesCard">
+    <div class="ad-eyebrow">📣 Resumo de ontem</div>
+    <div class="ad-title">Os melhores do dia</div>
+    <div class="ad-data" id="adData"></div>
+    <div class="ad-bloco destaque">
+      <div class="ad-bloco-tit">🎟️ Adesões SZ Club</div>
+      <div id="adSZ"></div>
+    </div>
+    <div class="ad-sec">
+      <div class="ad-bloco">
+        <div class="ad-bloco-tit">🖥️ Onlines</div>
+        <div id="adOnlines"></div>
+      </div>
+      <div class="ad-bloco">
+        <div class="ad-bloco-tit">🧴 Sprays</div>
+        <div id="adSprays"></div>
+      </div>
+    </div>
+    <button class="ad-fechar" onclick="document.getElementById('adesoesOverlay').style.display='none'">FECHAR</button>
+  </div>
+</div>
+<script>
+function _adesStr(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function _adesData(s){ return String(s||'').slice(0,10); }
+async function _adesFetchTodos(){
+  const url = SHEETS_URL + '?action=getTodos';
+  try{ const r = await fetch(url,{cache:'no-store'}); const j = await r.json(); if(Array.isArray(j)) return j; }catch(e){}
+  try{ const r2 = await fetch('https://corsproxy.io/?'+encodeURIComponent(url),{cache:'no-store'}); const j2 = await r2.json(); if(Array.isArray(j2)) return j2; }catch(e2){}
+  return null;
+}
+function _adesTop(dados, chave, n){
+  const soma = {};
+  dados.forEach(function(d){ const v = Number(d[chave])||0; if(v>0){ soma[d.nome] = (soma[d.nome]||0) + v; } });
+  return Object.keys(soma).map(function(nome){ return {nome:nome, v:soma[nome]}; })
+    .sort(function(a,b){ return b.v-a.v; }).slice(0, n||3);
+}
+function _adesRenderBloco(elId, top, sufixo){
+  const el = document.getElementById(elId); if(!el) return;
+  if(!top.length){ el.innerHTML = '<div class="ad-vazio">— sem registos —</div>'; return; }
+  const medalhas = ['🥇','🥈','🥉'];
+  el.innerHTML = top.map(function(t,i){
+    return '<div class="ad-row"><span class="ad-nome">' + (medalhas[i]||'') + ' ' + t.nome + '</span><span class="ad-val">' + t.v + (sufixo||'') + '</span></div>';
+  }).join('');
+}
+async function mostrarResumoAdesoes(){
+  try{
+    const pov = document.getElementById('progOverlay');
+    if(pov && pov.style.display === 'flex') return;        // não sobrepor ao popup do prognóstico
+    const hojeKey = _adesStr(new Date());
+    if(localStorage.getItem('adesoesVisto') === hojeKey) return;  // 1x por dia
+    const ontem = new Date(); ontem.setDate(ontem.getDate()-1);
+    const ontemStr = _adesStr(ontem);
+    const dados = await _adesFetchTodos();
+    if(!Array.isArray(dados)) return;
+    const doOntem = dados.filter(function(d){ return _adesData(d.data) === ontemStr; });
+    if(!doOntem.length) return;                            // ontem sem dados → não mostra
+    document.getElementById('adData').textContent = ontem.toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'});
+    _adesRenderBloco('adSZ', _adesTop(doOntem,'szclub',3));
+    _adesRenderBloco('adOnlines', _adesTop(doOntem,'onlines',3));
+    _adesRenderBloco('adSprays', _adesTop(doOntem,'sprays',3));
+    localStorage.setItem('adesoesVisto', hojeKey);
+    document.getElementById('adesoesOverlay').style.display = 'flex';
+  }catch(e){}
+}
+// Mostrar depois do prognóstico (que dispara aos 1800ms)
+document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarResumoAdesoes, 2800); });
 </script>
 
 <!-- CONFIRM MODAL -->
@@ -9290,6 +9394,7 @@ window.feedInit = function() {
 
 // ── ONBOARD ──
 function feedShowOnboard() {
+  return; // BALNEÁRIO removido — não mostrar o "Quem és tu?"
   const modal = document.getElementById('feedOnboard');
   const sel = document.getElementById('feedOnboardSelect');
   if (!modal || !sel) return;
@@ -10449,11 +10554,11 @@ function _feedPollForPopups() {
     .catch(() => fetch(proxy, {cache:'no-store'}).then(r=>r.json()).then(process).catch(()=>{}));
 }
 
-// Iniciar polling após 10s (deixa o app carregar primeiro), depois a cada 30s
-setTimeout(() => {
-  _feedPollLastCheck = Date.now();
-  setInterval(_feedPollForPopups, 30000);
-}, 10000);
+// BALNEÁRIO removido — polling de mensagens desativado
+// setTimeout(() => {
+//   _feedPollLastCheck = Date.now();
+//   setInterval(_feedPollForPopups, 30000);
+// }, 10000);
 
 })(); // end IIFE
 </script>
@@ -10463,6 +10568,7 @@ setTimeout(() => {
 <!-- ═══════════════════════════════════════════════════════ -->
 <style>
 #feedFab {
+  display: none !important; /* BALNEÁRIO removido — botão flutuante escondido */
   position: fixed;
   top: calc(12px + env(safe-area-inset-top, 0px));
   right: 14px;
