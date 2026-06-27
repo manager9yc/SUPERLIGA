@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<title>Contagem &#xB7; SportZone Vasco da Gama</title>
+<style>
+  :root{
+    --bg:#f1f5f9;
+    --card:#ffffff;
+    --ink:#0f172a;
+    --muted:#64748b;
+    --line:#e2e8f0;
+    --accent:#0f766e;       /* teal/verde dinheiro */
+    --accent-soft:#ccfbf1;
+    --pos:#15803d;
+    --neg:#dc2626;
+    --warn:#b45309;
+    --shadow:0 1px 2px rgba(15,23,42,.06),0 4px 16px rgba(15,23,42,.06);
+    --radius:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);
+    line-height:1.45;
+    padding-bottom:90px;
+    -webkit-text-size-adjust:100%;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky;top:0;z-index:50;
+    background:linear-gradient(135deg,#0f172a,#134e4a);
+    color:#fff;padding:14px 16px 12px;
+    box-shadow:0 2px 12px rgba(15,23,42,.2);
+  }
+  .h-top{display:flex;align-items:center;gap:12px;justify-content:space-between;}
+  .brand{display:flex;align-items:center;gap:10px;min-width:0;}
+  .logo{
+    width:38px;height:38px;border-radius:10px;flex:none;
+    background:var(--accent-soft);color:#134e4a;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;
+  }
+  .brand h1{font-size:15px;margin:0;font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .brand p{font-size:11px;margin:0;color:#99f6e4;}
+  .h-actions{display:flex;gap:8px;flex:none;}
+  .icon-btn{
+    background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:10px;
+    padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;
+  }
+  .icon-btn:active{transform:scale(.96);}
+  .icon-btn.danger{background:rgba(239,68,68,.22);}
+  .h-date{margin-top:10px;display:flex;align-items:center;gap:8px;font-size:13px;color:#ccfbf1;}
+  .h-date input{
+    background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);color:#fff;
+    border-radius:9px;padding:6px 10px;font-size:13px;font-family:inherit;
+  }
+  .saved{margin-left:auto;font-size:11px;color:#5eead4;display:flex;align-items:center;gap:5px;}
+  .saved .dot{width:7px;height:7px;border-radius:50%;background:#34d399;}
+
+  /* ---------- Tabs ---------- */
+  nav.tabs{
+    position:sticky;top:0;z-index:40;
+    display:flex;gap:6px;background:var(--bg);padding:10px 12px 6px;
+  }
+  nav.tabs button{
+    flex:1;border:none;background:var(--card);color:var(--muted);
+    padding:11px 8px;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;
+    box-shadow:var(--shadow);font-family:inherit;
+  }
+  nav.tabs button.active{background:var(--accent);color:#fff;}
+
+  /* ---------- Layout ---------- */
+  main{max-width:880px;margin:0 auto;padding:6px 12px 20px;}
+  .tabview{display:none;}
+  .tabview.active{display:block;}
+
+  details.card{
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+    margin:12px 0;overflow:hidden;border:1px solid var(--line);
+  }
+  summary{
+    list-style:none;cursor:pointer;padding:15px 16px;
+    display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;
+  }
+  summary::-webkit-details-marker{display:none;}
+  summary .chev{margin-left:auto;color:var(--muted);transition:transform .2s;font-size:13px;}
+  details[open] summary .chev{transform:rotate(180deg);}
+  summary .badge{
+    margin-left:auto;background:var(--accent-soft);color:#134e4a;
+    padding:3px 10px;border-radius:999px;font-size:13px;font-weight:800;
+  }
+  summary .badge + .chev{margin-left:8px;}
+  .card-body{padding:0 16px 16px;}
+  .sub{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:16px 0 8px;}
+  .sub:first-child{margin-top:4px;}
+
+  /* ---------- Denomination rows ---------- */
+  .drow{
+    display:grid;grid-template-columns:1fr 86px 96px;align-items:center;gap:8px;
+    padding:7px 0;border-bottom:1px solid var(--line);
+  }
+  .drow:last-child{border-bottom:none;}
+  .drow .lbl{font-size:14px;font-weight:600;}
+  .drow .lbl small{display:block;font-size:11px;color:var(--muted);font-weight:500;}
+  .drow input{
+    width:100%;text-align:center;font-size:16px;font-family:inherit;font-weight:700;
+    border:1.5px solid var(--line);border-radius:10px;padding:9px 4px;background:#f8fafc;color:var(--ink);
+  }
+  .drow input:focus{outline:none;border-color:var(--accent);background:#fff;}
+  .drow .tot{text-align:right;font-size:14px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .drow .tot.has{color:var(--ink);}
+
+  .subtotal{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:10px;padding:11px 13px;background:#f8fafc;border-radius:11px;font-size:14px;
+  }
+  .subtotal b{font-size:16px;font-variant-numeric:tabular-nums;}
+
+  .grandtotal{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:14px;padding:14px 16px;border-radius:13px;
+    background:linear-gradient(135deg,#0f766e,#134e4a);color:#fff;
+  }
+  .grandtotal span{font-size:14px;font-weight:600;opacity:.9;}
+  .grandtotal b{font-size:22px;font-variant-numeric:tabular-nums;}
+
+  .diff{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:10px;padding:12px 14px;border-radius:12px;font-size:14px;font-weight:600;
+  }
+  .diff.ok{background:#dcfce7;color:var(--pos);}
+  .diff.bad{background:#fee2e2;color:var(--neg);}
+  .diff b{font-size:17px;font-variant-numeric:tabular-nums;}
+
+  .field{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap;}
+  .field label{font-size:13px;font-weight:600;color:var(--muted);}
+  .field input[type=number],.field input[type=text]{
+    border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;font-size:15px;font-family:inherit;
+    background:#f8fafc;color:var(--ink);
+  }
+  .field input:focus{outline:none;border-color:var(--accent);background:#fff;}
+
+  /* tills */
+  .till-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media(max-width:560px){.till-grid{grid-template-columns:1fr;gap:4px;}}
+
+  .till-foot{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;}
+  .till-foot .box{flex:1;min-width:130px;padding:11px 13px;border-radius:11px;background:#f8fafc;}
+  .till-foot .box span{display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+  .till-foot .box b{font-size:18px;font-variant-numeric:tabular-nums;}
+  .till-foot .box.bank{background:var(--accent-soft);color:#134e4a;}
+
+  .addbtn{
+    width:100%;border:1.5px dashed var(--line);background:#fff;color:var(--accent);
+    border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;font-family:inherit;
+  }
+  .removebtn{background:none;border:none;color:var(--neg);font-size:12px;font-weight:700;cursor:pointer;padding:4px 6px;font-family:inherit;}
+
+  /* caixas cards */
+  .caixa-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:560px){.caixa-grid{grid-template-columns:1fr;}}
+  .caixa{border:1px solid var(--line);border-radius:13px;padding:13px;background:#fbfdfd;}
+  .caixa h3{margin:0 0 10px;font-size:15px;color:var(--accent);}
+  .caixa .crow{display:grid;grid-template-columns:1fr 110px;align-items:center;gap:8px;margin-bottom:7px;}
+  .caixa .crow label{font-size:13px;color:var(--muted);font-weight:600;}
+  .caixa .crow.audit label{color:var(--warn);font-weight:700;}
+  .caixa input{
+    width:100%;text-align:right;font-size:15px;font-weight:700;font-family:inherit;
+    border:1.5px solid var(--line);border-radius:9px;padding:8px;background:#fff;color:var(--ink);
+  }
+  .caixa input:focus{outline:none;border-color:var(--accent);}
+  .caixa .ctot{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);display:flex;justify-content:space-between;font-weight:800;}
+  .caixa .ctot b{color:var(--accent);font-variant-numeric:tabular-nums;}
+
+  .hint{font-size:12px;color:var(--muted);margin:6px 0 0;}
+  .sig{margin-top:14px;}
+  .sig input{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:11px;font-size:15px;font-family:inherit;background:#f8fafc;}
+  .stamp{font-size:12px;color:var(--muted);margin-top:6px;}
+
+  .print-head{display:none;}
+
+  /* ---------- Print ---------- */
+  @media print{
+    @page{margin:12mm;}
+    body{background:#fff;padding:0;}
+    header,nav.tabs,.h-actions,.icon-btn,.addbtn,.removebtn,.saved{display:none !important;}
+    .print-head{display:block;text-align:center;margin-bottom:10px;}
+    .print-head h1{font-size:18px;margin:0;}
+    .print-head p{font-size:12px;margin:2px 0;color:#444;}
+    main{max-width:100%;padding:0;}
+    .tabview{display:block !important;}
+    .tabview:not(.print-on){display:none !important;}
+    details.card{box-shadow:none;border:1px solid #cbd5e1;break-inside:avoid;margin:8px 0;}
+    details.card[open] .card-body{display:block;}
+    .card-body{display:block !important;}
+    summary .chev{display:none;}
+    input{border:1px solid #cbd5e1 !important;background:#fff !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .grandtotal,.diff,.subtotal,.till-foot .box,.caixa,.summary{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-top">
+    <div class="brand">
+      <div class="logo">VG</div>
+      <div>
+        <h1>Contagem de Caixa</h1>
+        <p>SportZone &#xB7; Vasco da Gama</p>
+      </div>
+    </div>
+    <div class="h-actions">
+      <button class="icon-btn" id="btnPrint">&#x1F5A8;&#xFE0F; Imprimir</button>
+      <button class="icon-btn danger" id="btnClear">&#x1F5D1;&#xFE0F;</button>
+    </div>
+  </div>
+  <div class="h-date">
+    <label for="dataInput">&#x1F4C5; Data:</label>
+    <input type="date" id="dataInput">
+    <span class="saved"><span class="dot"></span>Guardado</span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button id="tabBtn-contagem" class="active" onclick="showTab('contagem')">&#x1F4B6; Contagem</button>
+  <button id="tabBtn-caixas" onclick="showTab('caixas')">&#x1F9FE; Caixas</button>
+</nav>
+
+<main>
+  <div class="print-head" id="printHead"></div>
+
+  <!-- ===================== CONTAGEM ===================== -->
+  <div class="tabview active" id="view-contagem">
+
+    <details class="card" open>
+      <summary>&#x1F512; Contagem de Cofre <span class="badge" id="badge-cofre">0 &#x20AC;</span><span class="chev">&#x25BC;</span></summary>
+      <div class="card-body">
+        <div class="sub">Notas</div>
+        <div id="cofre-notas"></div>
+        <div class="subtotal">Subtotal notas <b id="st-cofre-notas">0 &#x20AC;</b></div>
+
+        <div class="sub">Mangas (sacos selados)</div>
+        <div id="cofre-mangas"></div>
+        <div class="subtotal">Subtotal mangas <b id="st-cofre-mangas">0 &#x20AC;</b></div>
+
+        <div class="sub">Saquetas / Rolos</div>
+        <div id="cofre-saquetas"></div>
+        <div class="subtotal">Subtotal saquetas <b id="st-cofre-saquetas">0 &#x20AC;</b></div>
+
+        <div class="sub">Moedas soltas</div>
+        <div id="cofre-moedas"></div>
+        <div class="subtotal">Subtotal moedas <b id="st-cofre-moedas">0 &#x20AC;</b></div>
+
+        <div class="grandtotal"><span>TOTAL COFRE</span><b id="total-cofre">0 &#x20AC;</b></div>
+
+        <div class="field" style="margin-top:14px;">
+          <label for="metaCofre">Cofre alvo (&#x20AC;):</label>
+          <input type="number" id="metaCofre" inputmode="decimal" step="50" style="width:110px;text-align:center;">
+        </div>
+        <div class="diff ok" id="diff-cofre"><span>&#x2696;&#xFE0F; Diferen&#xE7;a face ao alvo</span><b>0 &#x20AC;</b></div>
+
+        <div class="field" style="margin-top:14px;">
+          <label for="fundos">N&#xBA; de fundos por usar (&#xD7;250 &#x20AC;):</label>
+          <input type="number" id="fundos" inputmode="numeric" step="1" min="0" style="width:80px;text-align:center;">
+          <span style="font-weight:800;color:var(--accent);">= <span id="fundos-val">0 &#x20AC;</span></span>
+        </div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>&#x1F3E6; Ingresso ao Banco <span class="badge" id="badge-banco">0 &#x20AC;</span><span class="chev">&#x25BC;</span></summary>
+      <div class="card-body">
+        <div class="sub">Notas</div>
+        <div id="banco-notas"></div>
+        <div class="subtotal">Subtotal notas <b id="st-banco-notas">0 &#x20AC;</b></div>
+
+        <div class="sub">Moedas soltas</div>
+        <div id="banco-moedas"></div>
+        <div class="subtotal">Subtotal moedas <b id="st-banco-moedas">0 &#x20AC;</b></div>
+
+        <div class="grandtotal"><span>TOTAL ENVIO AO BANCO</span><b id="total-banco">0 &#x20AC;</b></div>
+
+        <div class="sig">
+          <input type="text" id="banco-assinatura" placeholder="&#x270D;&#xFE0F; Assinatura de quem envia">
+          <div class="stamp" id="banco-stamp"></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>&#x1F4B3; Caixas a fechar (Tills) <span class="badge" id="badge-tills">0 &#x20AC;</span><span class="chev">&#x25BC;</span></summary>
+      <div class="card-body">
+        <div class="field">
+          <label for="floatTill">Fundo a deixar em cada caixa (&#x20AC;):</label>
+          <input type="number" id="floatTill" inputmode="decimal" step="10" style="width:100px;text-align:center;">
+        </div>
+        <div id="tills-container"></div>
+        <button class="addbtn" id="btnAddTill">&#xFF0B; Adicionar caixa</button>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>&#x1F4CA; Resumo semanal (To Bank) <span class="badge" id="badge-resumo">0 &#x20AC;</span><span class="chev">&#x25BC;</span></summary>
+      <div class="card-body">
+        <p class="hint">Valores enviados ao banco em cada dia. (N&#xE3;o preencher na HI Retail App.)</p>
+        <div id="resumo-dias"></div>
+        <div class="grandtotal"><span>TOTAL SEMANA</span><b id="total-resumo">0 &#x20AC;</b></div>
+      </div>
+    </details>
+
+  </div>
+
+  <!-- ===================== CAIXAS ===================== -->
+  <div class="tabview" id="view-caixas">
+    <details class="card" open>
+      <summary>&#x1F4B5; Retiradas das Caixas <span class="badge" id="badge-caixas">0 &#x20AC;</span><span class="chev">&#x25BC;</span></summary>
+      <div class="card-body">
+        <p class="hint">Preenche as retiradas e o Till Audit (com moedas) de cada caixa.</p>
+        <div class="caixa-grid" id="caixas-container"></div>
+        <div class="grandtotal"><span>&#x1F3E6; TOTAL GERAL</span><b id="total-caixas">0 &#x20AC;</b></div>
+        <div class="sig">
+          <input type="text" id="caixas-assinatura" placeholder="&#x270D;&#xFE0F; Assinatura">
+          <div class="stamp" id="caixas-stamp"></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ---------- Configura\u00E7\u00E3o das denomina\u00E7\u00F5es ---------- */
+// valueEach = valor em \u20AC que cada unidade contada acrescenta
+const NOTAS    = [200,100,50,20,10,5].map(d=>({key:String(d), label:euro(d), valueEach:d}));
+const MOEDAS   = [2,1,0.5,0.2,0.1,0.05,0.02,0.01].map(d=>({key:String(d), label:euro(d), valueEach:d}));
+// Mangas: n\u00BA de moedas por manga (saco selado)
+const MANGAS_DEF = [[2,375],[1,375],[0.5,600],[0.2,800],[0.1,800],[0.05,1000],[0.02,1500],[0.01,1500]];
+const MANGAS   = MANGAS_DEF.map(([d,c])=>({key:String(d), label:euro(d), sub:'manga '+euro(d*c), valueEach:d*c}));
+// Saquetas / rolos standard
+const SAQ_DEF  = [[2,50],[1,25],[0.5,20],[0.2,8],[0.1,4],[0.05,2.5],[0.02,1],[0.01,0.5]];
+const SAQUETAS = SAQ_DEF.map(([d,v])=>({key:String(d), label:euro(d), sub:'rolo '+euro(v), valueEach:v}));
+
+const DIAS = ['Quinta','Sexta','S\u00E1bado','Domingo','Segunda','Ter\u00E7a','Quarta','Outro'];
+const RETIRADAS = ['Retirada 1','Retirada 2','Retirada 3','Retirada 4','Retirada 5'];
+const N_CAIXAS = 6;
+
+/* ---------- Estado ---------- */
+const STORE_KEY = 'contagem_vg_v1';
+let state = load();
+
+function defaultState(){
+  return {
+    data: today(),
+    cofre:{notas:{}, mangas:{}, saquetas:{}, moedas:{}, meta:2500, fundos:0},
+    banco:{notas:{}, moedas:{}, assinatura:'', stamp:''},
+    floatTill:200,
+    tills:[ till('Caixa 2'), till('Caixa 3'), till('Caixa 4') ],
+    resumo:{},
+    caixas: Array.from({length:N_CAIXAS},(_,i)=>({nome:'Caixa '+(i+1), retiradas:['','','','',''], audit:''})),
+    caixasAssinatura:'', caixasStamp:''
+  };
+}
+function till(nome){ return {nome, bills:{}, coins:{}}; }
+function load(){
+  try{ const s=JSON.parse(localStorage.getItem(STORE_KEY)); if(s&&s.cofre) return Object.assign(defaultState(),s); }catch(e){}
+  return defaultState();
+}
+let saveTimer;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>localStorage.setItem(STORE_KEY,JSON.stringify(state)),250);
+}
+
+/* ---------- Helpers ---------- */
+function euro(n){
+  return (Number(n)||0).toLocaleString('pt-PT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function today(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function num(v){ const n=parseFloat(String(v).replace(',','.')); return isNaN(n)?0:n; }
+function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstChild; }
+
+/* ---------- Constru\u00E7\u00E3o de grupos de denomina\u00E7\u00F5es ---------- */
+// store = objeto onde guardar as quantidades; defs = array de denomina\u00E7\u00F5es
+function buildDenomGroup(containerId, defs, store, onChange){
+  const c=document.getElementById(containerId); c.innerHTML='';
+  defs.forEach(def=>{
+    const row=el(`<div class="drow">
+        <div class="lbl">${def.label}${def.sub?`<small>${def.sub}</small>`:''}</div>
+        <input type="number" inputmode="numeric" min="0" step="1" placeholder="0">
+        <div class="tot">0 \u20AC</div>
+      </div>`);
+    const input=row.querySelector('input');
+    const tot=row.querySelector('.tot');
+    const v=store[def.key];
+    if(v) input.value=v;
+    const recalc=()=>{
+      const q=num(input.value);
+      if(q) store[def.key]=q; else delete store[def.key];
+      const t=q*def.valueEach;
+      tot.textContent=euro(t);
+      tot.classList.toggle('has',q>0);
+      onChange();
+    };
+    input.addEventListener('input',recalc);
+    recalc();
+    c.appendChild(row);
+  });
+}
+function sumGroup(defs,store){ return defs.reduce((s,d)=>s+num(store[d.key])*d.valueEach,0); }
+
+/* ---------- COFRE ---------- */
+function renderCofre(){
+  buildDenomGroup('cofre-notas',NOTAS,state.cofre.notas,calcCofre);
+  buildDenomGroup('cofre-mangas',MANGAS,state.cofre.mangas,calcCofre);
+  buildDenomGroup('cofre-saquetas',SAQUETAS,state.cofre.saquetas,calcCofre);
+  buildDenomGroup('cofre-moedas',MOEDAS,state.cofre.moedas,calcCofre);
+  const meta=document.getElementById('metaCofre'); meta.value=state.cofre.meta;
+  meta.addEventListener('input',()=>{state.cofre.meta=num(meta.value);calcCofre();save();});
+  const f=document.getElementById('fundos'); f.value=state.cofre.fundos||'';
+  f.addEventListener('input',()=>{state.cofre.fundos=num(f.value);calcCofre();save();});
+  calcCofre();
+}
+function calcCofre(){
+  const n=sumGroup(NOTAS,state.cofre.notas);
+  const m=sumGroup(MANGAS,state.cofre.mangas);
+  const s=sumGroup(SAQUETAS,state.cofre.saquetas);
+  const mo=sumGroup(MOEDAS,state.cofre.moedas);
+  set('st-cofre-notas',euro(n)); set('st-cofre-mangas',euro(m));
+  set('st-cofre-saquetas',euro(s)); set('st-cofre-moedas',euro(mo));
+  const total=n+m+s+mo;
+  set('total-cofre',euro(total)); set('badge-cofre',euro(total));
+  const diff=total-(state.cofre.meta||0);
+  const d=document.getElementById('diff-cofre');
+  d.className='diff '+(diff>=0?'ok':'bad');
+  d.querySelector('b').textContent=(diff>=0?'+':'')+euro(diff);
+  set('fundos-val',euro((state.cofre.fundos||0)*250));
+  save();
+}
+
+/* ---------- BANCO ---------- */
+function renderBanco(){
+  buildDenomGroup('banco-notas',NOTAS,state.banco.notas,calcBanco);
+  buildDenomGroup('banco-moedas',MOEDAS,state.banco.moedas,calcBanco);
+  const a=document.getElementById('banco-assinatura'); a.value=state.banco.assinatura||'';
+  a.addEventListener('input',()=>{
+    state.banco.assinatura=a.value;
+    state.banco.stamp = a.value ? new Date().toLocaleString('pt-PT') : '';
+    set('banco-stamp', state.banco.stamp?('Registado: '+state.banco.stamp):'');
+    save();
+  });
+  set('banco-stamp', state.banco.stamp?('Registado: '+state.banco.stamp):'');
+  calcBanco();
+}
+function calcBanco(){
+  const n=sumGroup(NOTAS,state.banco.notas);
+  const mo=sumGroup(MOEDAS,state.banco.moedas);
+  set('st-banco-notas',euro(n)); set('st-banco-moedas',euro(mo));
+  const total=n+mo;
+  set('total-banco',euro(total)); set('badge-banco',euro(total));
+  save();
+}
+
+/* ---------- TILLS ---------- */
+function renderTills(){
+  const f=document.getElementById('floatTill'); f.value=state.floatTill;
+  f.addEventListener('input',()=>{state.floatTill=num(f.value);calcTills();save();});
+  const c=document.getElementById('tills-container'); c.innerHTML='';
+  state.tills.forEach((t,idx)=>{
+    const card=el(`<div style="border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:12px;background:#fbfdfd;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <input class="till-name" type="text" value="${escapeHtml(t.nome)}" style="font-weight:800;font-size:15px;color:var(--accent);border:none;background:none;flex:1;font-family:inherit;">
+        ${state.tills.length>1?`<button class="removebtn" data-i="${idx}">\u2715 Remover</button>`:''}
+      </div>
+      <div class="till-grid">
+        <div><div class="sub">Notas</div><div class="t-bills"></div></div>
+        <div><div class="sub">Moedas</div><div class="t-coins"></div></div>
+      </div>
+      <div class="till-foot">
+        <div class="box"><span>Total contado</span><b class="t-total">0 \u20AC</b></div>
+        <div class="box bank"><span>A enviar ao banco</span><b class="t-bank">0 \u20AC</b></div>
+      </div>
+    </div>`);
+    const billsBox=card.querySelector('.t-bills');
+    const coinsBox=card.querySelector('.t-coins');
+    buildInline(billsBox,NOTAS,t.bills,calcTills);
+    buildInline(coinsBox,MOEDAS,t.coins,calcTills);
+    card.querySelector('.till-name').addEventListener('input',e=>{t.nome=e.target.value;save();});
+    const rb=card.querySelector('.removebtn');
+    if(rb) rb.addEventListener('click',()=>{
+      if(confirm('Remover '+t.nome+'?')){ state.tills.splice(idx,1); renderTills(); }
+    });
+    c.appendChild(card);
+  });
+  calcTills();
+}
+function buildInline(box,defs,store,onChange){
+  box.innerHTML='';
+  defs.forEach(def=>{
+    const row=el(`<div class="drow" style="grid-template-columns:1fr 70px 84px;">
+      <div class="lbl">${def.label}</div>
+      <input type="number" inputmode="numeric" min="0" step="1" placeholder="0">
+      <div class="tot">0 \u20AC</div></div>`);
+    const input=row.querySelector('input'), tot=row.querySelector('.tot');
+    if(store[def.key]) input.value=store[def.key];
+    const rc=()=>{const q=num(input.value); if(q)store[def.key]=q; else delete store[def.key];
+      tot.textContent=euro(q*def.valueEach); tot.classList.toggle('has',q>0); onChange();};
+    input.addEventListener('input',rc); rc();
+    box.appendChild(row);
+  });
+}
+function calcTills(){
+  let grand=0;
+  document.querySelectorAll('#tills-container > div').forEach((card,idx)=>{
+    const t=state.tills[idx]; if(!t) return;
+    const total=sumGroup(NOTAS,t.bills)+sumGroup(MOEDAS,t.coins);
+    const bank=total - (state.floatTill||0);
+    card.querySelector('.t-total').textContent=euro(total);
+    card.querySelector('.t-bank').textContent=euro(bank);
+    grand+=Math.max(bank,0);
+  });
+  set('badge-tills',euro(grand));
+  save();
+}
+
+/* ---------- RESUMO SEMANAL ---------- */
+function renderResumo(){
+  const c=document.getElementById('resumo-dias'); c.innerHTML='';
+  DIAS.forEach(dia=>{
+    const row=el(`<div class="drow" style="grid-template-columns:1fr 130px;">
+      <div class="lbl">${dia}</div>
+      <input type="number" inputmode="decimal" step="0.01" placeholder="0,00"></div>`);
+    const input=row.querySelector('input');
+    if(state.resumo[dia]) input.value=state.resumo[dia];
+    input.addEventListener('input',()=>{
+      const v=num(input.value); if(v)state.resumo[dia]=v; else delete state.resumo[dia];
+      calcResumo();save();
+    });
+    c.appendChild(row);
+  });
+  calcResumo();
+}
+function calcResumo(){
+  const total=DIAS.reduce((s,d)=>s+num(state.resumo[d]),0);
+  set('total-resumo',euro(total)); set('badge-resumo',euro(total));
+}
+
+/* ---------- CAIXAS ---------- */
+function renderCaixas(){
+  const c=document.getElementById('caixas-container'); c.innerHTML='';
+  state.caixas.forEach((cx,ci)=>{
+    const card=el(`<div class="caixa"><h3>${escapeHtml(cx.nome)}</h3></div>`);
+    RETIRADAS.forEach((label,ri)=>{
+      const row=el(`<div class="crow"><label>${label}</label>
+        <input type="number" inputmode="decimal" step="0.01" placeholder="0,00"></div>`);
+      const input=row.querySelector('input');
+      if(cx.retiradas[ri]) input.value=cx.retiradas[ri];
+      input.addEventListener('input',()=>{cx.retiradas[ri]=input.value;calcCaixas();save();});
+      card.appendChild(row);
+    });
+    const arow=el(`<div class="crow audit"><label>Till Audit (c/ moedas)</label>
+      <input type="number" inputmode="decimal" step="0.01" placeholder="0,00"></div>`);
+    const ai=arow.querySelector('input');
+    if(cx.audit) ai.value=cx.audit;
+    ai.addEventListener('input',()=>{cx.audit=ai.value;calcCaixas();save();});
+    card.appendChild(arow);
+    card.appendChild(el(`<div class="ctot"><span>Total</span><b class="cx-total">0 \u20AC</b></div>`));
+    c.appendChild(card);
+  });
+  const a=document.getElementById('caixas-assinatura'); a.value=state.caixasAssinatura||'';
+  a.addEventListener('input',()=>{
+    state.caixasAssinatura=a.value;
+    state.caixasStamp = a.value ? new Date().toLocaleString('pt-PT') : '';
+    set('caixas-stamp', state.caixasStamp?('Registado: '+state.caixasStamp):'');
+    save();
+  });
+  set('caixas-stamp', state.caixasStamp?('Registado: '+state.caixasStamp):'');
+  calcCaixas();
+}
+function calcCaixas(){
+  let grand=0;
+  document.querySelectorAll('#caixas-container .caixa').forEach((card,ci)=>{
+    const cx=state.caixas[ci];
+    const t=cx.retiradas.reduce((s,v)=>s+num(v),0)+num(cx.audit);
+    card.querySelector('.cx-total').textContent=euro(t);
+    grand+=t;
+  });
+  set('total-caixas',euro(grand)); set('badge-caixas',euro(grand));
+  save();
+}
+
+/* ---------- Utilidades UI ---------- */
+function set(id,txt){ const e=document.getElementById(id); if(e) e.textContent=txt; }
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function showTab(name){
+  document.querySelectorAll('.tabview').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tabBtn-'+name).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+/* ---------- Data / Print / Clear ---------- */
+const dataInput=document.getElementById('dataInput');
+dataInput.value=state.data||today();
+dataInput.addEventListener('change',()=>{state.data=dataInput.value;save();});
+
+document.getElementById('btnPrint').addEventListener('click',()=>{
+  // Cabe\u00E7alho de impress\u00E3o
+  const activeTab=document.querySelector('.tabview.active').id.replace('view-','');
+  const d=new Date(state.data+'T00:00:00');
+  document.getElementById('printHead').innerHTML=
+    `<h1>Contagem de Caixa \u2014 SportZone Vasco da Gama</h1>
+     <p>${activeTab==='caixas'?'Retiradas das Caixas':'Contagem / Cofre / Banco'} \u00B7 Data: ${isNaN(d)?state.data:d.toLocaleDateString('pt-PT')}</p>`;
+  // Marca o separador ativo para impress\u00E3o e abre todos os cart\u00F5es
+  document.querySelectorAll('.tabview').forEach(v=>v.classList.remove('print-on'));
+  document.querySelector('.tabview.active').classList.add('print-on');
+  const opened=[];
+  document.querySelectorAll('.tabview.active details').forEach(d=>{ if(!d.open){d.open=true;opened.push(d);} });
+  window.print();
+  setTimeout(()=>opened.forEach(d=>d.open=false),500);
+});
+
+document.getElementById('btnClear').addEventListener('click',()=>{
+  if(confirm('Limpar TODA a contagem e come\u00E7ar de novo?\n(Os dados atuais ser\u00E3o apagados.)')){
+    state=defaultState(); state.data=today();
+    localStorage.removeItem(STORE_KEY);
+    initAll();
+  }
+});
+
+/* ---------- Init ---------- */
+function initAll(){
+  dataInput.value=state.data||today();
+  renderCofre(); renderBanco(); renderTills(); renderResumo(); renderCaixas();
+}
+document.getElementById('btnAddTill').addEventListener('click',()=>{
+  state.tills.push(till('Caixa '+(state.tills.length+2)));
+  renderTills(); save();
+});
+initAll();
+</script>
+</body>
+</html>
