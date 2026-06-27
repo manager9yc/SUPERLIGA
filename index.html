@@ -26,6 +26,9 @@
   --text: #f0f0f0;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* Esconder a barra de scroll em todo o lado (o scroll continua a funcionar) */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { width: 0; height: 0; display: none; }
 html { overflow-x: hidden; max-width: 100vw; }
 body { background: var(--dark); background-image: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.04) 0%, transparent 60%); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; max-width: 100vw; padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
 
@@ -7275,7 +7278,7 @@ function renderDesafiosMedalhas() {
     </div>
     <div id="progForm">
       <div class="prog-desc">Diz qual vai ser o <b>resultado exato</b> do jogo de <span id="progQuandoJogo">amanhã</span>. Cada operador só tem <b>UMA</b> tentativa!</div>
-      <div class="prog-prize">🍬 Quem acertar ganha um saco de gomas!</div>
+      <div class="prog-prize" id="progPrize">🍬 Quem acertar ganha um saco de gomas!</div>
       <select id="progNome"></select>
       <div class="prog-score">
         <div class="sc"><span class="sc-lbl">🇵🇹 Portugal</span><input type="number" id="progCasa" min="0" max="20" inputmode="numeric" placeholder="0"></div>
@@ -7308,9 +7311,17 @@ function _jogoAtivo(){
   }
   // JOGO 2 — Portugal x Uzbequistão. Abre SEGUNDA 22 jun; fecha TERÇA 23 jun às 20:00; resultado até 26 jun.
   if(t >= new Date(2026,5,22,0,0,0).getTime() && t < new Date(2026,5,26,0,0,0).getTime()){
-    const fechado = t >= new Date(2026,5,23,20,0,0).getTime();
+    const fechado = t >= new Date(2026,5,23,18,0,0).getTime();
     return { id:'uzb-2026-06-23', adversario:'Uzbequistão', flag:'🇺🇿',
-      fase: fechado ? 'resultado' : 'aberto', quando:'terça-feira', horaFecho:'20:00',
+      fase: fechado ? 'resultado' : 'aberto', quando:'terça-feira', horaFecho:'18:00',
+      resultado: null /* quando souberes: { casa, fora, texto } */ };
+  }
+  // JOGO 3 — Portugal x Colômbia. Abre agora (27 jun); fecha 28 jun às 00:30 (hora do jogo); resultado até 29 jun.
+  if(t >= new Date(2026,5,27,0,0,0).getTime() && t < new Date(2026,5,29,12,0,0).getTime()){
+    const fechado = t >= new Date(2026,5,28,0,30,0).getTime();
+    return { id:'col-2026-06-28', adversario:'Colômbia', flag:'🇨🇴',
+      fase: fechado ? 'resultado' : 'aberto', quando:'hoje à noite', horaFecho:'00:30',
+      premio:'🔓 Quem acertar ganha uma tentativa de abrir o Cofre (€6)!',
       resultado: null /* quando souberes: { casa, fora, texto } */ };
   }
   return null;
@@ -7413,6 +7424,7 @@ async function mostrarPrognosticoSeAtivo(){
     const e1 = document.getElementById('progQuandoJogo'); if(e1) e1.textContent = jogo.quando || '';
     const e2 = document.getElementById('progQuandoFecha'); if(e2) e2.textContent = jogo.quando || '';
     const e3 = document.getElementById('progHoraFecha'); if(e3) e3.textContent = jogo.horaFecho || '';
+    const pz = document.getElementById('progPrize'); if(pz) pz.textContent = jogo.premio || '🍬 Quem acertar ganha um saco de gomas!';
     document.getElementById('progForm').style.display = 'block';
     document.getElementById('progSucesso').style.display = 'none';
     ov.style.display = 'flex';
