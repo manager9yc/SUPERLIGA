@@ -7316,13 +7316,13 @@ function _jogoAtivo(){
       fase: fechado ? 'resultado' : 'aberto', quando:'terça-feira', horaFecho:'18:00',
       resultado: null /* quando souberes: { casa, fora, texto } */ };
   }
-  // JOGO 3 — Portugal x Colômbia. Abre agora (27 jun); fecha 28 jun às 00:30 (hora do jogo); resultado até 29 jun.
-  if(t >= new Date(2026,5,27,0,0,0).getTime() && t < new Date(2026,5,29,12,0,0).getTime()){
+  // JOGO 3 — Portugal x Colômbia. Abriu 27 jun; fechou 28 jun 00:30; mostra resultado até 30 jun.
+  if(t >= new Date(2026,5,27,0,0,0).getTime() && t < new Date(2026,5,30,0,0,0).getTime()){
     const fechado = t >= new Date(2026,5,28,0,30,0).getTime();
     return { id:'col-2026-06-28', adversario:'Colômbia', flag:'🇨🇴',
       fase: fechado ? 'resultado' : 'aberto', quando:'hoje à noite', horaFecho:'00:30',
       premio:'🔓 Quem acertar ganha uma tentativa de abrir o Cofre (€6)!',
-      resultado: null /* quando souberes: { casa, fora, texto } */ };
+      resultado: { casa:0, fora:0, texto:'Ninguém acertou o resultado exato 😅<br>Mais perto (2–1): <b>João Marques</b> e <b>Beatriz Rosa</b>.' } };
   }
   return null;
 }
