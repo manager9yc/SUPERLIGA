@@ -8158,11 +8158,12 @@ if (state.top3) state.top3 = state.top3.filter(p => p.nome !== '_jogador');
 // Regras (já no código): +€2 por semana (WEEKLY_ADD) ao domingo; reset/mínimo = €2 (BASE_JACKPOT).
 (function _cofreCorrecaoUnica(){
   try {
-    if (localStorage.getItem('cofreAjuste4eur') === '1') return;
-    state.jackpot = 4.00;                    // valor acumulado desta semana
+    if (localStorage.getItem('cofreAjuste_20260628') === '1') return;
+    state.jackpot = 4.00;                    // repor cofre a €4
+    state.weeksNoWinner = 1;
     state.lastMondayAccum = getMondayKey();  // alinhar à semana atual (domingo) sem somar de novo
     saveState();
-    localStorage.setItem('cofreAjuste4eur', '1');
+    localStorage.setItem('cofreAjuste_20260628', '1');
   } catch(e) {}
 })();
 
