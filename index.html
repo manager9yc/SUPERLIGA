@@ -1828,7 +1828,7 @@ const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxpnTHL-_VI1WrxzVD5H
 // Camada 1: localStorage 'equipasData' (imediata, sobrevive a recarregar neste aparelho)
 // Camada 2: servidor (Apps Script) — partilha por TODOS os aparelhos.
 //   >>> Depois de publicares o Web App de colaboradores, cola o URL aqui: <<<
-const ROSTER_URL = 'https://script.google.com/macros/s/AKfycbzA0PF6yen65MgK3NSDW5YCmXSrzHCqtnX1h4kkD1dGLOgU4TNwUoX0p_1QRi9LvCue/exec';
+const ROSTER_URL = 'https://script.google.com/macros/s/AKfycbxztRKM-1SdK2PYfVrBQgbelxyDb3FYFMDgG9sWzbWOw9cdJL26G37Ui0jT1ltXZsk9/exec';
 
 function _rosterSnapshot(){
   return equipas.map(e => ({ id: e.id, nomes: e.nomes }));
@@ -7604,6 +7604,8 @@ async function mostrarResumoAdesoes(){
   try{
     const pov = document.getElementById('progOverlay');
     if(pov && pov.style.display === 'flex') return;        // não sobrepor ao popup do prognóstico
+    const hojeKey = _adesStr(new Date());
+    if(localStorage.getItem('adesoesVisto') === hojeKey) return;  // 1x por dia
     const ontem = new Date(); ontem.setDate(ontem.getDate()-1);
     const ontemStr = _adesStr(ontem);
     const dados = await _adesFetchTodos();
@@ -7614,6 +7616,7 @@ async function mostrarResumoAdesoes(){
     _adesRenderBloco('adSZ', _adesTop(doOntem,'szclub',3));
     _adesRenderBloco('adOnlines', _adesTop(doOntem,'onlines',3));
     _adesRenderBloco('adSprays', _adesTop(doOntem,'sprays',3));
+    localStorage.setItem('adesoesVisto', hojeKey);
     document.getElementById('adesoesOverlay').style.display = 'flex';
   }catch(e){}
 }
@@ -7652,7 +7655,9 @@ function _semanaAnteriorRange(){
 async function mostrarWinnersCofre(){
   try{
     const dow = new Date().getDay();
-    if(dow !== 0 && dow !== 1) return;                       // só Domingo e Segunda
+    if(dow !== 1) return;                                    // só Segunda-feira
+    const hojeKey = _adesStr(new Date());
+    if(localStorage.getItem('winnersVisto') === hojeKey) return;  // 1x por dia
     const aOv = document.getElementById('adesoesOverlay');
     const pOv = document.getElementById('progOverlay');
     const wOv = document.getElementById('winnersOverlay');
@@ -7670,6 +7675,7 @@ async function mostrarWinnersCofre(){
     }).filter(Boolean).join('');
     if(!html) return;
     document.getElementById('winnersLista').innerHTML = html;
+    try{ localStorage.setItem('winnersVisto', _adesStr(new Date())); }catch(e){}
     document.getElementById('winnersOverlay').style.display='flex';
   }catch(e){}
 }
@@ -7698,12 +7704,13 @@ function _cofrePinMsg(icon, tit, txt){
   document.getElementById('cofrePinMsgTxt').textContent = txt;
   document.getElementById('cofrePinMsgOverlay').style.display = 'flex';
 }
-function _cofrePinMarcarUsado(pin){
-  const body = JSON.stringify({ action:'cofrePinUsar', pin: pin });
-  fetch(ROSTER_URL, { method:'POST', mode:'no-cors', body: body }).catch(function(){
-    fetch('https://corsproxy.io/?' + encodeURIComponent(ROSTER_URL), { method:'POST', body: body }).catch(function(){});
-  });
-}
+function _cofrePinMarcarUsado(pin){ window._cofrePinSetEstado(pin, 'usado'); }
+// Atualiza o estado do PIN no servidor: 'usado' | 'ganhou' | 'perdeu'
+window._cofrePinSetEstado = function(pin, estado){
+  if(!pin) return;
+  const body = JSON.stringify({ action:'cofrePinUsar', pin: pin, estado: estado });
+  try{ fetch(ROSTER_URL, { method:'POST', mode:'no-cors', body: body }).catch(function(){}); }catch(e){}
+};
 async function _cofrePinEstado(pin){
   const url = ROSTER_URL + '?action=cofrePinEstado&pin=' + encodeURIComponent(pin);
   try{ const r = await fetch(url,{cache:'no-store'}); const j = await r.json(); if(j) return j; }catch(e){}
@@ -7719,8 +7726,9 @@ async function _entrarCofrePorURL(){
     const est = await _cofrePinEstado(pin);
     if(!est){ _cofrePinMsg('📶','Sem ligação','Não foi possível validar o código. Liga-te à internet e abre o link outra vez.'); return; }
     if(!est.existe){ _cofrePinMsg('❌','Código inválido','Este código do Cofre não existe.'); return; }
-    if(est.estado === 'usado'){ _cofrePinMsg('🔒','Já utilizado','Este código já foi usado. Cada pessoa só tem UMA oportunidade no Cofre.'); return; }
-    _cofrePinMarcarUsado(pin);   // marca JÁ como usado (à prova de batota)
+    if(est.estado && est.estado !== 'livre'){ _cofrePinMsg('🔒','Já utilizado','Este código já foi usado. Cada pessoa só tem UMA oportunidade no Cofre.'); return; }
+    window._cofrePinAtual = pin;  // guardar para registar o resultado (ganhou/perdeu)
+    _cofrePinMarcarUsado(pin);    // marca JÁ como usado (à prova de batota)
     if(typeof window._cofreAbrirComPin === 'function') window._cofreAbrirComPin(est.nome || 'Convidado');
   }catch(e){}
 }
@@ -7768,13 +7776,15 @@ async function _carregarCofrePins(){
   try{ const r = await fetch(url,{cache:'no-store'}); lista = await r.json(); }catch(e){}
   if(!Array.isArray(lista)){ try{ const r2=await fetch('https://corsproxy.io/?'+encodeURIComponent(url),{cache:'no-store'}); lista=await r2.json(); }catch(e2){} }
   if(!Array.isArray(lista) || !lista.length){ cont.innerHTML=''; return; }
+  const _estLabel = { livre:'⚪ por usar', usado:'🎮 jogou (não terminou)', ganhou:'🏆 GANHOU', perdeu:'❌ perdeu' };
+  const _estCor   = { livre:'#00CC66', usado:'#FFB800', ganhou:'#C9A84C', perdeu:'#ef4444' };
   cont.innerHTML = '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">PINs gerados</div>' +
     lista.slice().reverse().map(function(p){
-      const usado = String(p.estado)==='usado';
+      const est = String(p.estado||'livre');
       return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;font-size:13px">' +
         '<span style="color:#fff;flex:1">' + p.nome + ' · <b style="color:#C9A84C">' + p.pin + '</b></span>' +
-        '<span style="font-size:11px;color:' + (usado?'#ef4444':'#00CC66') + '">' + (usado?'usado':'por usar') + '</span>' +
-        '<button onclick="apagarCofrePin(\'' + p.pin + '\')" style="background:transparent;border:1px solid #CC0000;border-radius:6px;padding:4px 9px;color:#CC0000;font-size:11px;cursor:pointer">🗑 Eliminar</button>' +
+        '<span style="font-size:11px;font-weight:700;color:' + (_estCor[est]||'#999') + '">' + (_estLabel[est]||est) + '</span>' +
+        '<button onclick="apagarCofrePin(\'' + p.pin + '\')" style="background:transparent;border:1px solid #CC0000;border-radius:6px;padding:4px 9px;color:#CC0000;font-size:11px;cursor:pointer">🗑</button>' +
       '</div>';
     }).join('');
 }
@@ -8197,6 +8207,7 @@ function fecharCofre() {
   document.body.style.overflow = '';
   // Sair do modo-PIN ao fechar (volta ao modo normal / anónimo)
   window._cofrePinModeNome = null;
+  window._cofrePinAtual = null;
   // Limpar sessão ao fechar — novo código ao reabrir
   window._anonAttempts = 0;
   window._cofreGameTimerRunning = false;
@@ -9006,11 +9017,13 @@ function submitAttempt() {
   renderAttemptsList();
 
   if (isWin) {
+    if (window._cofrePinModeNome && window._cofrePinAtual) window._cofrePinSetEstado(window._cofrePinAtual, 'ganhou');
     _pararCofreGameTimer();
     setTimeout(()=>handleWin(), 800);
   } else {
     cofreSom('errado');
     if (attLeft <= 0) {
+      if (window._cofrePinModeNome && window._cofrePinAtual) window._cofrePinSetEstado(window._cofrePinAtual, 'perdeu');
       _pararCofreGameTimer();
       if (currentPlayer.nome !== '_jogador') state.top3[pidx].usedThisWeek = true;
       const padEl = document.getElementById('numpadCofre');
@@ -9061,6 +9074,7 @@ function _rotateCodeForPlayer(nome, attempts) {
 }
 
 function _mostrarCofrePopupSemTentativas(nome) {
+  return;  // desativado: não mostrar o aviso "sai e volta a entrar"
   const old = document.getElementById('cofreSemTentativasModal');
   if (old) old.remove();
   const modal = document.createElement('div');
