@@ -7746,10 +7746,11 @@ async function gerarCofrePin(){
   const res = document.getElementById('cofrePinResultado');
   if(res) res.innerHTML = '<div style="color:var(--muted);font-size:13px">A gerar...</div>';
   const payload = JSON.stringify({ action:'cofrePinCriar', pin: pin, nome: nome });
-  let ok=false;
-  try{ const r = await fetch(ROSTER_URL,{method:'POST',body:payload}); const j = await r.json().catch(()=>null); if(j) ok = j.success===true; }catch(e){}
-  if(!ok){ try{ const r2 = await fetch('https://corsproxy.io/?'+encodeURIComponent(ROSTER_URL),{method:'POST',body:payload}); const j2 = await r2.json().catch(()=>null); if(j2) ok = j2.success===true; }catch(e2){} }
-  if(!ok){ if(res) res.innerHTML = '<div style="color:#ef4444;font-size:13px">⚠️ Não consegui gravar o PIN. Tenta de novo.</div>'; return; }
+  try{ await fetch(ROSTER_URL,{method:'POST',mode:'no-cors',body:payload}); }catch(e){}
+  // confirmar no servidor (em vez de ler a resposta, que o proxy por vezes baralha)
+  let existe=false;
+  try{ await new Promise(r=>setTimeout(r,1800)); const est = await _cofrePinEstado(pin); existe = !!(est && est.existe); }catch(e){}
+  if(!existe){ if(res) res.innerHTML = '<div style="color:#ef4444;font-size:13px">⚠️ Não consegui gravar o PIN. Tenta de novo.</div>'; return; }
   const link = _cofreBaseURL() + '?cofre=' + pin;
   if(res) res.innerHTML =
     '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.35);border-radius:10px;padding:12px">' +
@@ -7771,10 +7772,18 @@ async function _carregarCofrePins(){
     lista.slice().reverse().map(function(p){
       const usado = String(p.estado)==='usado';
       return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;font-size:13px">' +
-        '<span style="color:#fff">' + p.nome + ' · <b style="color:#C9A84C">' + p.pin + '</b></span>' +
+        '<span style="color:#fff;flex:1">' + p.nome + ' · <b style="color:#C9A84C">' + p.pin + '</b></span>' +
         '<span style="font-size:11px;color:' + (usado?'#ef4444':'#00CC66') + '">' + (usado?'usado':'por usar') + '</span>' +
+        '<button onclick="apagarCofrePin(\'' + p.pin + '\')" style="background:transparent;border:1px solid #CC0000;border-radius:6px;padding:4px 9px;color:#CC0000;font-size:11px;cursor:pointer">🗑 Eliminar</button>' +
       '</div>';
     }).join('');
+}
+async function apagarCofrePin(pin){
+  if(!confirm('Eliminar o PIN ' + pin + '? O colaborador poderá receber um novo PIN para nova tentativa.')) return;
+  const payload = JSON.stringify({ action:'cofrePinApagar', pin: pin });
+  try{ await fetch(ROSTER_URL,{method:'POST',mode:'no-cors',body:payload}); }catch(e){}
+  showToast('✓ PIN eliminado');
+  setTimeout(_carregarCofrePins, 1800);   // a lista recarregada confirma a remoção
 }
 </script>
 
