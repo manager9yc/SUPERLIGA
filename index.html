@@ -1694,6 +1694,7 @@ body.theme-ucl .submit-btn:active{background:linear-gradient(135deg,#22C55E,#16A
       <div style="padding:0 16px 16px">
         <div style="font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--orange);margin-bottom:4px">🔐 Cofre à distância</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Gera um código (PIN) de <b>uso único</b> para cada colaborador jogar o Cofre em casa. Escolhe <b>um ou vários</b>, gera os links e envia a cada um (ex.: WhatsApp).</div>
+        <button type="button" onclick="_cofrePinSelVencedores()" style="background:rgba(201,168,76,0.15);border:1px solid #C9A84C;border-radius:8px;padding:10px 14px;color:#C9A84C;font-size:13px;font-weight:700;cursor:pointer;width:100%;margin-bottom:8px">🏆 Selecionar 1.ºs classificados da semana passada</button>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
           <button type="button" onclick="_cofrePinSelTodos(true)" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text);font-size:12px;cursor:pointer">✓ Todos</button>
           <button type="button" onclick="_cofrePinSelTodos(false)" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text);font-size:12px;cursor:pointer">✕ Limpar</button>
@@ -7759,6 +7760,31 @@ function _cofrePinAtualizarCount(){
   const n = document.querySelectorAll('.cofrePinChk:checked').length;
   const el = document.getElementById('cofrePinSelCount');
   if(el) el.textContent = n + (n===1 ? ' escolhido' : ' escolhidos');
+}
+// Marca automaticamente o 1.º classificado de cada categoria (semana passada Dom->Sáb)
+async function _cofrePinSelVencedores(){
+  showToast('A procurar os 1.ºs classificados...');
+  const r = _semanaAnteriorRange();
+  const dados = await _adesFetchTodos();
+  if(!Array.isArray(dados)){ showToast('⚠️ Não consegui ir buscar os dados'); return; }
+  const sem = dados.filter(function(d){ const x=_adesData(d.data); return x>=r.ini && x<=r.fim; });
+  if(!sem.length){ showToast('⚠️ Sem registos na semana passada'); return; }
+  const nomes = [];
+  categorias.forEach(function(c){
+    const top = _adesTop(sem, c.key, 1);
+    if(top.length && nomes.indexOf(top[0].nome) === -1) nomes.push(top[0].nome);
+  });
+  if(!nomes.length){ showToast('⚠️ Não encontrei vencedores'); return; }
+  let marcados = 0; const naoEncontrados = [];
+  const chks = [...document.querySelectorAll('.cofrePinChk')];
+  nomes.forEach(function(n){
+    const chk = chks.find(function(c){ return c.value === n; });
+    if(chk){ chk.checked = true; marcados++; } else { naoEncontrados.push(n); }
+  });
+  _cofrePinAtualizarCount();
+  let msg = '✓ ' + marcados + (marcados===1 ? ' campeão selecionado' : ' campeões selecionados');
+  if(naoEncontrados.length) msg += ' · fora da lista: ' + naoEncontrados.join(', ');
+  showToast(msg);
 }
 function _copiarTexto(t){
   try{ navigator.clipboard.writeText(t); showToast('✓ Link copiado'); }
