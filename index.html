@@ -1690,6 +1690,19 @@ body.theme-ucl .submit-btn:active{background:linear-gradient(135deg,#22C55E,#16A
       </div>
       <div style="height:1px;background:var(--border);margin:0 0 12px"></div>
 
+      <!-- COFRE À DISTÂNCIA (PINs de uso único) -->
+      <div style="padding:0 16px 16px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--orange);margin-bottom:4px">🔐 Cofre à distância</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Gera um código (PIN) de <b>uso único</b> para um colaborador jogar o Cofre em casa. Copia o link e envia-lho (ex.: WhatsApp).</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="cofrePinNomeSel" style="flex:1;min-width:160px;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:14px;outline:none"></select>
+          <button onclick="gerarCofrePin()" style="background:var(--orange);border:none;border-radius:8px;padding:9px 16px;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer">🔑 Gerar PIN + link</button>
+        </div>
+        <div id="cofrePinResultado" style="margin-top:10px"></div>
+        <div id="cofrePinLista" style="margin-top:12px"></div>
+      </div>
+      <div style="height:1px;background:var(--border);margin:0 0 12px"></div>
+
       <div style="padding:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <input type="date" id="adminDate" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;cursor:pointer" onchange="carregarAdmin()">
         <button onclick="carregarAdmin()" style="background:var(--orange);border:none;border-radius:10px;padding:10px 18px;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer">Atualizar</button>
@@ -2041,6 +2054,7 @@ function goTo(screen, btn) {
     } else {
       renderDadosTab();
       if (typeof renderGestaoLista === 'function') renderGestaoLista();
+      if (typeof _popularCofrePinNomes === 'function') { _popularCofrePinNomes(); _carregarCofrePins(); }
     }
   }
 }
@@ -4275,6 +4289,7 @@ function pinPress(key) {
         document.getElementById('adminBody').style.display = 'block';
         renderDadosTab();
         if (typeof renderGestaoLista === 'function') renderGestaoLista();
+      if (typeof _popularCofrePinNomes === 'function') { _popularCofrePinNomes(); _carregarCofrePins(); }
         renderPremiosEditor();
         renderPremiosLog();
         renderAdminSugestoes();
@@ -7301,7 +7316,10 @@ function renderDesafiosMedalhas() {
 <script>
 // ════════ JOGOS DE PROGNÓSTICO (configuração por data) ════════
 // Devolve o jogo ativo conforme a data, ou null se não houver nada a mostrar.
+// Liga (true) / desliga (false) o popup de prognóstico. Desligado até nova ordem.
+const PROG_ATIVO = false;
 function _jogoAtivo(){
+  if(!PROG_ATIVO) return null;
   const t = Date.now();
   // JOGO 1 — Portugal x Congo (terminado). Mostra o RESULTADO até 19 jun.
   if(t >= new Date(2026,5,17,18,0,0).getTime() && t < new Date(2026,5,19,0,0,0).getTime()){
@@ -7556,7 +7574,7 @@ document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarProg
         <div id="adSprays"></div>
       </div>
     </div>
-    <button class="ad-fechar" onclick="document.getElementById('adesoesOverlay').style.display='none'">FECHAR</button>
+    <button class="ad-fechar" onclick="_fecharAdesoes()">FECHAR</button>
   </div>
 </div>
 <script>
@@ -7601,6 +7619,163 @@ async function mostrarResumoAdesoes(){
 }
 // Mostrar depois do prognóstico (que dispara aos 1800ms)
 document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarResumoAdesoes, 2800); });
+</script>
+
+<!-- ═══ POPUP DOM/SEG — CAMPEÕES DA SEMANA (acesso ao Cofre) ═══ -->
+<style>
+#winnersOverlay{display:none;position:fixed;inset:0;z-index:99350;background:rgba(0,0,0,0.88);align-items:center;justify-content:center;padding:18px;}
+#winnersCard{background:linear-gradient(160deg,#13110a,#0a0904);border:2px solid rgba(201,168,76,0.5);border-radius:22px;padding:20px 18px;width:100%;max-width:380px;text-align:center;box-shadow:0 0 60px rgba(201,168,76,0.18),0 20px 60px rgba(0,0,0,0.9);animation:bounceIn .4s cubic-bezier(0.34,1.56,0.64,1)}
+#winnersCard .w-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:rgba(201,168,76,0.6)}
+#winnersCard .w-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:#C9A84C;line-height:1}
+#winnersCard .w-sub{font-size:12px;color:rgba(255,255,255,0.6);margin:6px 0 14px;line-height:1.4}
+#winnersCard .win-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:8px;margin-bottom:5px}
+#winnersCard .win-cat{font-size:12px;color:rgba(255,255,255,0.75);text-align:left}
+#winnersCard .win-nome{font-size:13px;color:#fff;white-space:nowrap}
+#winnersCard .w-fechar{width:100%;margin-top:12px;background:linear-gradient(135deg,#a07820,#C9A84C,#F5D87E);border:none;border-radius:12px;padding:13px;color:#0a0904;font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:2px;cursor:pointer}
+</style>
+<div id="winnersOverlay">
+  <div id="winnersCard">
+    <div class="w-eyebrow">🔓 Acesso ao Cofre</div>
+    <div class="w-title">Campeões da semana</div>
+    <div class="w-sub">Os 1.<sup>os</sup> de cada categoria (semana anterior) ganham acesso a jogar o Cofre! 💪 Sê o melhor para garantires o teu lugar.</div>
+    <div id="winnersLista"></div>
+    <button class="w-fechar" onclick="document.getElementById('winnersOverlay').style.display='none'">FECHAR</button>
+  </div>
+</div>
+<script>
+function _semanaAnteriorRange(){
+  const dom = domingoDaSemana(new Date());
+  const ini = new Date(dom.getFullYear(), dom.getMonth(), dom.getDate()-7);
+  const fim = new Date(dom.getFullYear(), dom.getMonth(), dom.getDate()-1);
+  return { ini: _adesStr(ini), fim: _adesStr(fim) };
+}
+async function mostrarWinnersCofre(){
+  try{
+    const dow = new Date().getDay();
+    if(dow !== 0 && dow !== 1) return;                       // só Domingo e Segunda
+    const aOv = document.getElementById('adesoesOverlay');
+    const pOv = document.getElementById('progOverlay');
+    const wOv = document.getElementById('winnersOverlay');
+    if((aOv && aOv.style.display==='flex') || (pOv && pOv.style.display==='flex')) return;  // não sobrepor
+    if(wOv && wOv.style.display==='flex') return;
+    const r = _semanaAnteriorRange();
+    const dados = await _adesFetchTodos();
+    if(!Array.isArray(dados)) return;
+    const sem = dados.filter(function(d){ const x=_adesData(d.data); return x>=r.ini && x<=r.fim; });
+    if(!sem.length) return;
+    const html = categorias.map(function(c){
+      const top = _adesTop(sem, c.key, 1);
+      if(!top.length) return '';
+      return '<div class="win-row"><span class="win-cat">'+c.emoji+' '+c.label+'</span><span class="win-nome">🥇 '+top[0].nome+' <b style="color:#C9A84C">('+top[0].v+')</b></span></div>';
+    }).filter(Boolean).join('');
+    if(!html) return;
+    document.getElementById('winnersLista').innerHTML = html;
+    document.getElementById('winnersOverlay').style.display='flex';
+  }catch(e){}
+}
+// Quando o popup de "ontem" fecha, mostra (em sequência) os campeões — só Dom/Seg
+function _fecharAdesoes(){
+  const a = document.getElementById('adesoesOverlay'); if(a) a.style.display='none';
+  setTimeout(mostrarWinnersCofre, 300);
+}
+// No arranque: se o popup de "ontem" não apareceu, mostra os campeões na mesma (Dom/Seg)
+window.addEventListener('load', function(){ setTimeout(mostrarWinnersCofre, 3600); });
+</script>
+
+<!-- ═══ ACESSO REMOTO AO COFRE (PIN de uso único) ═══ -->
+<div id="cofrePinMsgOverlay" style="display:none;position:fixed;inset:0;z-index:99600;background:rgba(0,0,0,0.9);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:linear-gradient(160deg,#13110a,#0a0904);border:2px solid rgba(201,168,76,0.5);border-radius:20px;padding:26px 22px;max-width:340px;width:100%;text-align:center">
+    <div style="font-size:46px;margin-bottom:8px" id="cofrePinMsgIcon">🔒</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#C9A84C;letter-spacing:1px;margin-bottom:8px" id="cofrePinMsgTit">Cofre</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.7);line-height:1.5;margin-bottom:16px" id="cofrePinMsgTxt"></div>
+    <button onclick="document.getElementById('cofrePinMsgOverlay').style.display='none'" style="background:linear-gradient(135deg,#a07820,#C9A84C,#F5D87E);border:none;border-radius:12px;padding:12px 28px;color:#0a0904;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;cursor:pointer">OK</button>
+  </div>
+</div>
+<script>
+function _cofrePinMsg(icon, tit, txt){
+  document.getElementById('cofrePinMsgIcon').textContent = icon;
+  document.getElementById('cofrePinMsgTit').textContent = tit;
+  document.getElementById('cofrePinMsgTxt').textContent = txt;
+  document.getElementById('cofrePinMsgOverlay').style.display = 'flex';
+}
+function _cofrePinMarcarUsado(pin){
+  const body = JSON.stringify({ action:'cofrePinUsar', pin: pin });
+  fetch(ROSTER_URL, { method:'POST', mode:'no-cors', body: body }).catch(function(){
+    fetch('https://corsproxy.io/?' + encodeURIComponent(ROSTER_URL), { method:'POST', body: body }).catch(function(){});
+  });
+}
+async function _cofrePinEstado(pin){
+  const url = ROSTER_URL + '?action=cofrePinEstado&pin=' + encodeURIComponent(pin);
+  try{ const r = await fetch(url,{cache:'no-store'}); const j = await r.json(); if(j) return j; }catch(e){}
+  try{ const r2 = await fetch('https://corsproxy.io/?'+encodeURIComponent(url),{cache:'no-store'}); const j2 = await r2.json(); if(j2) return j2; }catch(e2){}
+  return null;
+}
+async function _entrarCofrePorURL(){
+  try{
+    const params = new URLSearchParams(location.search);
+    const pin = (params.get('cofre') || '').trim();
+    if(!pin) return;
+    try{ history.replaceState(null, '', location.pathname); }catch(e){}  // limpar URL (evita reabrir em refresh)
+    const est = await _cofrePinEstado(pin);
+    if(!est){ _cofrePinMsg('📶','Sem ligação','Não foi possível validar o código. Liga-te à internet e abre o link outra vez.'); return; }
+    if(!est.existe){ _cofrePinMsg('❌','Código inválido','Este código do Cofre não existe.'); return; }
+    if(est.estado === 'usado'){ _cofrePinMsg('🔒','Já utilizado','Este código já foi usado. Cada pessoa só tem UMA oportunidade no Cofre.'); return; }
+    _cofrePinMarcarUsado(pin);   // marca JÁ como usado (à prova de batota)
+    if(typeof window._cofreAbrirComPin === 'function') window._cofreAbrirComPin(est.nome || 'Convidado');
+  }catch(e){}
+}
+window.addEventListener('load', function(){ setTimeout(_entrarCofrePorURL, 1200); });
+
+// ── ADMIN: gerar PINs de uso único + copiar link ──
+function _cofreBaseURL(){ return location.origin + location.pathname; }
+function _popularCofrePinNomes(){
+  const sel = document.getElementById('cofrePinNomeSel');
+  if(!sel) return;
+  const nomes = [...new Set(equipas.flatMap(e=>e.nomes))].sort();
+  sel.innerHTML = '<option value="">— Escolhe o colaborador —</option>' + nomes.map(n=>'<option value="'+n+'">'+n+'</option>').join('');
+}
+function _copiarTexto(t){
+  try{ navigator.clipboard.writeText(t); showToast('✓ Link copiado'); }
+  catch(e){ showToast('Copia manualmente o link'); }
+}
+async function gerarCofrePin(){
+  const sel = document.getElementById('cofrePinNomeSel');
+  const nome = sel ? sel.value : '';
+  if(!nome){ showToast('⚠️ Escolhe o colaborador'); return; }
+  const pin = String(Math.floor(1000 + Math.random()*9000));
+  const res = document.getElementById('cofrePinResultado');
+  if(res) res.innerHTML = '<div style="color:var(--muted);font-size:13px">A gerar...</div>';
+  const payload = JSON.stringify({ action:'cofrePinCriar', pin: pin, nome: nome });
+  let ok=false;
+  try{ const r = await fetch(ROSTER_URL,{method:'POST',body:payload}); const j = await r.json().catch(()=>null); if(j) ok = j.success===true; }catch(e){}
+  if(!ok){ try{ const r2 = await fetch('https://corsproxy.io/?'+encodeURIComponent(ROSTER_URL),{method:'POST',body:payload}); const j2 = await r2.json().catch(()=>null); if(j2) ok = j2.success===true; }catch(e2){} }
+  if(!ok){ if(res) res.innerHTML = '<div style="color:#ef4444;font-size:13px">⚠️ Não consegui gravar o PIN. Tenta de novo.</div>'; return; }
+  const link = _cofreBaseURL() + '?cofre=' + pin;
+  if(res) res.innerHTML =
+    '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.35);border-radius:10px;padding:12px">' +
+      '<div style="font-size:13px;color:#fff;margin-bottom:6px"><b>' + nome + '</b> · PIN <b style="color:#C9A84C;letter-spacing:2px">' + pin + '</b></div>' +
+      '<div style="font-size:11px;color:var(--muted);word-break:break-all;margin-bottom:8px">' + link + '</div>' +
+      '<button onclick="_copiarTexto(\'' + link + '\')" style="background:var(--orange);border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;cursor:pointer">📋 Copiar link</button>' +
+    '</div>';
+  _carregarCofrePins();
+}
+async function _carregarCofrePins(){
+  const cont = document.getElementById('cofrePinLista');
+  if(!cont) return;
+  let lista = null;
+  const url = ROSTER_URL + '?action=cofrePinList';
+  try{ const r = await fetch(url,{cache:'no-store'}); lista = await r.json(); }catch(e){}
+  if(!Array.isArray(lista)){ try{ const r2=await fetch('https://corsproxy.io/?'+encodeURIComponent(url),{cache:'no-store'}); lista=await r2.json(); }catch(e2){} }
+  if(!Array.isArray(lista) || !lista.length){ cont.innerHTML=''; return; }
+  cont.innerHTML = '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">PINs gerados</div>' +
+    lista.slice().reverse().map(function(p){
+      const usado = String(p.estado)==='usado';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:5px;font-size:13px">' +
+        '<span style="color:#fff">' + p.nome + ' · <b style="color:#C9A84C">' + p.pin + '</b></span>' +
+        '<span style="font-size:11px;color:' + (usado?'#ef4444':'#00CC66') + '">' + (usado?'usado':'por usar') + '</span>' +
+      '</div>';
+    }).join('');
+}
 </script>
 
 <!-- CONFIRM MODAL -->
@@ -8011,6 +8186,8 @@ function _abrirCofreDirecto() {
 function fecharCofre() {
   document.getElementById('cofreOverlay').style.display = 'none';
   document.body.style.overflow = '';
+  // Sair do modo-PIN ao fechar (volta ao modo normal / anónimo)
+  window._cofrePinModeNome = null;
   // Limpar sessão ao fechar — novo código ao reabrir
   window._anonAttempts = 0;
   window._cofreGameTimerRunning = false;
@@ -8205,12 +8382,22 @@ function cofreInit() {
   buildComboDisplay();
   syncPlayersFromLocalStorage();
   renderJackpot();
-  // Jogador anónimo
+  // Jogador anónimo (ou jogador do PIN no jogo remoto à distância)
   if (!state.top3) state.top3 = [];
-  let anon = state.top3.find(p => p.nome === '_jogador');
-  if (!anon) { anon = {nome:'_jogador', score:0, attempts:0, usedThisWeek:false}; state.top3.push(anon); }
-  anon.attempts = 0; anon.usedThisWeek = false;
-  currentPlayer = anon;
+  if (window._cofrePinModeNome) {
+    // MODO PIN: jogador fixo com nome → limite normal de 3 tentativas
+    state.top3 = state.top3.filter(p => p.nome !== '_jogador' && p.nome !== window._cofrePinModeNome);
+    currentPlayer = { nome: window._cofrePinModeNome, score:0, attempts:0, usedThisWeek:false };
+    state.top3.push(currentPlayer);
+    const _elig = document.querySelector('#cofreOverlay .eligibility-section'); if(_elig) _elig.style.display = 'none';
+    const _psw  = document.querySelector('#cofreOverlay .player-select-wrap'); if(_psw) _psw.style.display = 'none';
+    const _hs   = document.querySelector('#cofreOverlay .header-sub'); if(_hs) _hs.textContent = 'A jogar: ' + window._cofrePinModeNome + ' · 3 tentativas';
+  } else {
+    let anon = state.top3.find(p => p.nome === '_jogador');
+    if (!anon) { anon = {nome:'_jogador', score:0, attempts:0, usedThisWeek:false}; state.top3.push(anon); }
+    anon.attempts = 0; anon.usedThisWeek = false;
+    currentPlayer = anon;
+  }
   renderVaultStatus();
   updateStatusBar();
   cofreRefreshDados();
@@ -9145,6 +9332,13 @@ function cofreToast(msg, type='') {
   clearTimeout(window._toastTimer);
   window._toastTimer = setTimeout(()=>t.classList.remove('show'), 2800);
 }
+
+// Abrir o cofre em MODO PIN (jogo remoto à distância): jogador fixo, 3 tentativas
+window._cofreAbrirComPin = function(nome){
+  window._cofrePinModeNome = nome || 'Convidado';
+  window._cofreAccessGranted = true;
+  _abrirCofreDirecto();
+};
 
 // Expose only the entry point
 window.getCofreElegiveis = getCofreElegiveis;
