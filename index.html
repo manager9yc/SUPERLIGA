@@ -1693,11 +1693,14 @@ body.theme-ucl .submit-btn:active{background:linear-gradient(135deg,#22C55E,#16A
       <!-- COFRE À DISTÂNCIA (PINs de uso único) -->
       <div style="padding:0 16px 16px">
         <div style="font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--orange);margin-bottom:4px">🔐 Cofre à distância</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Gera um código (PIN) de <b>uso único</b> para um colaborador jogar o Cofre em casa. Copia o link e envia-lho (ex.: WhatsApp).</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select id="cofrePinNomeSel" style="flex:1;min-width:160px;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:14px;outline:none"></select>
-          <button onclick="gerarCofrePin()" style="background:var(--orange);border:none;border-radius:8px;padding:9px 16px;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer">🔑 Gerar PIN + link</button>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Gera um código (PIN) de <b>uso único</b> para cada colaborador jogar o Cofre em casa. Escolhe <b>um ou vários</b>, gera os links e envia a cada um (ex.: WhatsApp).</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <button type="button" onclick="_cofrePinSelTodos(true)" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text);font-size:12px;cursor:pointer">✓ Todos</button>
+          <button type="button" onclick="_cofrePinSelTodos(false)" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text);font-size:12px;cursor:pointer">✕ Limpar</button>
+          <span id="cofrePinSelCount" style="font-size:12px;color:var(--muted);margin-left:auto">0 escolhidos</span>
         </div>
+        <div id="cofrePinNomeBox" style="max-height:200px;overflow-y:auto;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:6px 10px"></div>
+        <button onclick="gerarCofrePin()" style="background:var(--orange);border:none;border-radius:8px;padding:11px 16px;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;cursor:pointer;width:100%;margin-top:8px">🔑 Gerar PINs + links</button>
         <div id="cofrePinResultado" style="margin-top:10px"></div>
         <div id="cofrePinLista" style="margin-top:12px"></div>
       </div>
@@ -7737,35 +7740,75 @@ window.addEventListener('load', function(){ setTimeout(_entrarCofrePorURL, 1200)
 // ── ADMIN: gerar PINs de uso único + copiar link ──
 function _cofreBaseURL(){ return location.origin + location.pathname; }
 function _popularCofrePinNomes(){
-  const sel = document.getElementById('cofrePinNomeSel');
-  if(!sel) return;
+  const box = document.getElementById('cofrePinNomeBox');
+  if(!box) return;
   const nomes = [...new Set(equipas.flatMap(e=>e.nomes))].sort();
-  sel.innerHTML = '<option value="">— Escolhe o colaborador —</option>' + nomes.map(n=>'<option value="'+n+'">'+n+'</option>').join('');
+  box.innerHTML = nomes.map(function(n){
+    const safe = String(n).replace(/"/g,'&quot;');
+    return '<label style="display:flex;align-items:center;gap:9px;padding:6px 2px;font-size:14px;color:var(--text);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04)">'+
+      '<input type="checkbox" class="cofrePinChk" value="'+safe+'" onchange="_cofrePinAtualizarCount()" style="width:17px;height:17px;accent-color:var(--orange);cursor:pointer;flex-shrink:0">'+
+      '<span>'+n+'</span></label>';
+  }).join('');
+  _cofrePinAtualizarCount();
+}
+function _cofrePinSelTodos(v){
+  document.querySelectorAll('.cofrePinChk').forEach(function(c){ c.checked = v; });
+  _cofrePinAtualizarCount();
+}
+function _cofrePinAtualizarCount(){
+  const n = document.querySelectorAll('.cofrePinChk:checked').length;
+  const el = document.getElementById('cofrePinSelCount');
+  if(el) el.textContent = n + (n===1 ? ' escolhido' : ' escolhidos');
 }
 function _copiarTexto(t){
   try{ navigator.clipboard.writeText(t); showToast('✓ Link copiado'); }
   catch(e){ showToast('Copia manualmente o link'); }
 }
+function _copiarTodosLinks(){
+  const arr = window._cofrePinUltimos || [];
+  if(!arr.length){ showToast('Nada para copiar'); return; }
+  const txt = arr.map(function(g){ return g.nome + ': ' + g.link; }).join('\n');
+  try{ navigator.clipboard.writeText(txt); showToast('✓ ' + arr.length + ' links copiados'); }
+  catch(e){ showToast('Copia manualmente'); }
+}
 async function gerarCofrePin(){
-  const sel = document.getElementById('cofrePinNomeSel');
-  const nome = sel ? sel.value : '';
-  if(!nome){ showToast('⚠️ Escolhe o colaborador'); return; }
-  const pin = String(Math.floor(1000 + Math.random()*9000));
+  const nomes = [...document.querySelectorAll('.cofrePinChk:checked')].map(function(c){ return c.value; });
+  if(!nomes.length){ showToast('⚠️ Escolhe pelo menos um colaborador'); return; }
   const res = document.getElementById('cofrePinResultado');
-  if(res) res.innerHTML = '<div style="color:var(--muted);font-size:13px">A gerar...</div>';
-  const payload = JSON.stringify({ action:'cofrePinCriar', pin: pin, nome: nome });
-  try{ await fetch(ROSTER_URL,{method:'POST',mode:'no-cors',body:payload}); }catch(e){}
-  // confirmar no servidor (em vez de ler a resposta, que o proxy por vezes baralha)
-  let existe=false;
-  try{ await new Promise(r=>setTimeout(r,1800)); const est = await _cofrePinEstado(pin); existe = !!(est && est.existe); }catch(e){}
-  if(!existe){ if(res) res.innerHTML = '<div style="color:#ef4444;font-size:13px">⚠️ Não consegui gravar o PIN. Tenta de novo.</div>'; return; }
-  const link = _cofreBaseURL() + '?cofre=' + pin;
-  if(res) res.innerHTML =
-    '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.35);border-radius:10px;padding:12px">' +
-      '<div style="font-size:13px;color:#fff;margin-bottom:6px"><b>' + nome + '</b> · PIN <b style="color:#C9A84C;letter-spacing:2px">' + pin + '</b></div>' +
-      '<div style="font-size:11px;color:var(--muted);word-break:break-all;margin-bottom:8px">' + link + '</div>' +
-      '<button onclick="_copiarTexto(\'' + link + '\')" style="background:var(--orange);border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;cursor:pointer">📋 Copiar link</button>' +
-    '</div>';
+  if(res) res.innerHTML = '<div style="color:var(--muted);font-size:13px">A gerar ' + nomes.length + ' PIN(s)...</div>';
+  // 1) cria os PINs no servidor (um a um, com PINs únicos entre os escolhidos)
+  const gerados = [];
+  for(const nome of nomes){
+    let pin, tent=0;
+    do { pin = String(Math.floor(1000 + Math.random()*9000)); tent++; } while(gerados.some(function(g){return g.pin===pin;}) && tent<15);
+    gerados.push({ nome: nome, pin: pin, link: _cofreBaseURL() + '?cofre=' + pin, ok: false });
+    try{ await fetch(ROSTER_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({ action:'cofrePinCriar', pin: pin, nome: nome })}); }catch(e){}
+    await new Promise(r=>setTimeout(r,700));
+  }
+  // 2) confirma no servidor (lê o estado de cada um)
+  await new Promise(r=>setTimeout(r,1400));
+  for(const g of gerados){
+    try{ const est = await _cofrePinEstado(g.pin); g.ok = !!(est && est.existe); }catch(e){}
+  }
+  const ok = gerados.filter(function(g){return g.ok;});
+  const fail = gerados.filter(function(g){return !g.ok;});
+  window._cofrePinUltimos = ok;
+  // 3) mostra cada link individualmente + botão para copiar todos
+  let html = '';
+  if(ok.length){
+    html += '<button onclick="_copiarTodosLinks()" style="background:var(--orange);border:none;border-radius:8px;padding:11px 14px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-bottom:10px">📋 Copiar todos os links (' + ok.length + ')</button>';
+    html += ok.map(function(g){
+      return '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.35);border-radius:10px;padding:10px;margin-bottom:8px">' +
+        '<div style="font-size:13px;color:#fff;margin-bottom:4px"><b>' + g.nome + '</b> · PIN <b style="color:#C9A84C;letter-spacing:2px">' + g.pin + '</b></div>' +
+        '<div style="font-size:11px;color:var(--muted);word-break:break-all;margin-bottom:8px">' + g.link + '</div>' +
+        '<button onclick="_copiarTexto(\'' + g.link + '\')" style="background:transparent;border:1px solid var(--orange);border-radius:8px;padding:6px 12px;color:var(--orange);font-size:12px;cursor:pointer">📋 Copiar este link</button>' +
+      '</div>';
+    }).join('');
+  }
+  if(fail.length){
+    html += '<div style="color:#ef4444;font-size:12px;margin-top:6px">⚠️ Não consegui confirmar: <b>' + fail.map(function(f){return f.nome;}).join(', ') + '</b>. Gera de novo só para esse(s).</div>';
+  }
+  if(res) res.innerHTML = html;
   _carregarCofrePins();
 }
 async function _carregarCofrePins(){
