@@ -7578,6 +7578,10 @@ document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarProg
         <div id="adSprays"></div>
       </div>
     </div>
+    <div class="ad-bloco">
+      <div class="ad-bloco-tit">🛍️ Sacos</div>
+      <div id="adSacos"></div>
+    </div>
     <button class="ad-fechar" onclick="_fecharAdesoes()">FECHAR</button>
   </div>
 </div>
@@ -7620,6 +7624,7 @@ async function mostrarResumoAdesoes(){
     _adesRenderBloco('adSZ', _adesTop(doOntem,'szclub',3));
     _adesRenderBloco('adOnlines', _adesTop(doOntem,'onlines',3));
     _adesRenderBloco('adSprays', _adesTop(doOntem,'sprays',3));
+    _adesRenderBloco('adSacos', _adesTop(doOntem,'sacos',3));
     localStorage.setItem('adesoesVisto', hojeKey);
     document.getElementById('adesoesOverlay').style.display = 'flex';
   }catch(e){}
