@@ -2032,8 +2032,9 @@ function goTo(screen, btn) {
   if (screen === 'ranking') {
     const elU = document.getElementById('rankLastUpdate');
     if (elU) elU.textContent = '';
-    if (window._rankingCache) {
-      renderRanking(window._rankingCache);
+    const _rmScr = _rankingMesAtual();
+    if (_rmScr) {
+      renderRanking(_rmScr);
     } else {
       const rm = document.getElementById('rankMain');
       if (rm) rm.innerHTML = _skeletonRanking();
@@ -2683,7 +2684,7 @@ function setRankFilter(key, btn) {
   _buildWeekChips();
   if (key === 'mes') {
     document.getElementById('rankFilterMes').classList.add('active');
-    if (window._rankingCache) renderRanking(window._rankingCache);
+    { const _rmF = _rankingMesAtual(); renderRanking(_rmF || []); }
     return;
   }
   const chip = document.querySelector(`[data-dom="${key.replace('semana_','')}"]`);
@@ -2790,7 +2791,7 @@ async function carregarRanking() {
           if (_tc) { const _tp = JSON.parse(_tc); if (Array.isArray(_tp) && _tp.length) dashAllDados = normalizarDatasArray(_tp); }
         } catch(_e) {}
       }
-      renderRanking(window._rankingCache);
+      { const _rmC = _rankingMesAtual(); renderRanking(_rmC !== null ? _rmC : []); }
       hadCache = true;
       const label = new Date(cachedTime).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
       if (age < CACHE_TTL) {
@@ -2867,7 +2868,7 @@ async function carregarRanking() {
     const result = rankRes.value;
     window._rankingCache = result;
     try { localStorage.setItem('rankingCache', JSON.stringify(result)); localStorage.setItem('rankingCacheTime', Date.now().toString()); } catch(e2) {}
-    if (!signal.aborted && _rankFilter === 'mes') renderRanking(result);
+    if (!signal.aborted && _rankFilter === 'mes') { const _rmR = _rankingMesAtual(); if (_rmR !== null) renderRanking(_rmR); }
     if (elU2 && !signal.aborted) elU2.textContent = '\u2713 Atualizado agora';
   } else {
     // Fetch falhou ou retornou vazio — mostrar hora do cache ou aviso
@@ -2880,9 +2881,10 @@ async function carregarRanking() {
         elU2.textContent = '\u26a0 Sem liga\u00e7\u00e3o';
       }
     }
-    // Se temos cache em memória mas ainda não foi renderizado, renderizar agora
-    if (window._rankingCache && window._rankingCache.length && !signal.aborted && _rankFilter === 'mes') {
-      renderRanking(window._rankingCache);
+    // Se temos dados datados em cache, renderizar o mês atual agora
+    if (!signal.aborted && _rankFilter === 'mes') {
+      const _rmB = _rankingMesAtual();
+      if (_rmB !== null) renderRanking(_rmB);
     }
   }
 
@@ -2947,6 +2949,33 @@ async function getRankingFromDados(todos) {
     if (isNaN(dt) || dt.getMonth()!==mesAtual || dt.getFullYear()!==anoAtual) return;
     if (!agg[d.nome]) agg[d.nome] = {nome:d.nome,equipa:d.equipa||'',onlines:0,sprays:0,palmilhas:0,camisolas:0,sacos:0,garrafas:0,elogios:0,szclub:0};
     categorias.forEach(cat => { agg[d.nome][cat.key] += (d[cat.key]||0); });
+  });
+  return Object.values(agg);
+}
+
+// ── Fonte de dados DATADOS (para conseguir filtrar por mês) ──
+// dashAllDados (getTodos em memória) ou o cache 'todosCache'. Nunca usa o
+// getRanking do servidor para o ranking mensal, porque esse soma TODOS os meses.
+function _dadosDatados() {
+  if (Array.isArray(dashAllDados) && dashAllDados.length) return dashAllDados;
+  try {
+    const c = localStorage.getItem('todosCache');
+    if (c) { const p = JSON.parse(c); if (Array.isArray(p) && p.length) return normalizarDatasArray(p); }
+  } catch(e) {}
+  return null;
+}
+// Ranking agregado APENAS do mês atual. Reinicia sozinho a cada mês (filtra por
+// getMonth()/getFullYear()). Devolve null se ainda não há dados datados.
+function _rankingMesAtual() {
+  const full = _dadosDatados();
+  if (!full) return null;
+  const mes = new Date().getMonth(), ano = new Date().getFullYear();
+  const agg = {};
+  full.forEach(function(d) {
+    const dt = new Date((d.data||'')+'T12:00:00');
+    if (isNaN(dt) || dt.getMonth() !== mes || dt.getFullYear() !== ano) return;
+    if (!agg[d.nome]) agg[d.nome] = {nome:d.nome,equipa:d.equipa||'',onlines:0,sprays:0,palmilhas:0,camisolas:0,sacos:0,garrafas:0,elogios:0,szclub:0};
+    categorias.forEach(function(cat){ agg[d.nome][cat.key] += (Number(d[cat.key])||0); });
   });
   return Object.values(agg);
 }
@@ -3774,17 +3803,20 @@ try{
 
 async function carregarSplashTop3(){
   try{
-    let dados=null;
-    try{const cv=localStorage.getItem('rankingCache');if(cv)dados=JSON.parse(cv);}catch(e){}
-    if(!dados||!dados.length){
+    // Top3 do MÊS ATUAL (datado). Não usa getRanking (que soma todos os meses).
+    let dados=_rankingMesAtual();
+    if(dados===null){
       try{
         const r=await Promise.race([
-          fetch(SHEETS_URL+'?action=getRanking',{cache:'no-store'}),
-          fetch('https://corsproxy.io/?'+encodeURIComponent(SHEETS_URL+'?action=getRanking'),{cache:'no-store'}),
+          fetch(SHEETS_URL+'?action=getTodos',{cache:'no-store'}),
+          fetch('https://corsproxy.io/?'+encodeURIComponent(SHEETS_URL+'?action=getTodos'),{cache:'no-store'}),
           new Promise((_,rej)=>setTimeout(()=>rej(),8000))
         ]);
-        dados=await r.json();
-        if(Array.isArray(dados)&&dados.length)try{localStorage.setItem('rankingCache',JSON.stringify(dados));}catch(e){}
+        const td=await r.json();
+        if(Array.isArray(td)&&td.length){
+          try{localStorage.setItem('todosCache',JSON.stringify(td));localStorage.setItem('todosCacheTime',Date.now().toString());}catch(e){}
+          dados=_rankingMesAtual();
+        }
       }catch(e){return;}
     }
     if(!Array.isArray(dados)||!dados.length)return;
@@ -7541,7 +7573,7 @@ document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarProg
 <!-- ═══ POPUP DIÁRIO — RESUMO DE ONTEM (SZClub / Onlines / Sprays) ═══ -->
 <style>
 #adesoesOverlay{display:none;position:fixed;inset:0;z-index:99400;background:rgba(0,0,0,0.88);align-items:center;justify-content:center;padding:18px;}
-#adesoesCard{background:linear-gradient(160deg,#13110a,#0a0904);border:2px solid rgba(201,168,76,0.5);border-radius:22px;padding:20px 18px;width:100%;max-width:380px;text-align:center;box-shadow:0 0 60px rgba(201,168,76,0.18),0 20px 60px rgba(0,0,0,0.9);animation:bounceIn .4s cubic-bezier(0.34,1.56,0.64,1)}
+#adesoesCard{background:linear-gradient(160deg,#13110a,#0a0904);border:2px solid rgba(201,168,76,0.5);border-radius:22px;padding:20px 18px;width:100%;max-width:380px;max-height:92vh;overflow-y:auto;text-align:center;box-shadow:0 0 60px rgba(201,168,76,0.18),0 20px 60px rgba(0,0,0,0.9);animation:bounceIn .4s cubic-bezier(0.34,1.56,0.64,1)}
 #adesoesCard .ad-eyebrow{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:rgba(201,168,76,0.6)}
 #adesoesCard .ad-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:#C9A84C;line-height:1;margin-bottom:2px}
 #adesoesCard .ad-data{font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:14px}
@@ -7564,23 +7596,21 @@ document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarProg
     <div class="ad-eyebrow">📣 Resumo de ontem</div>
     <div class="ad-title">Os melhores de ontem</div>
     <div class="ad-data" id="adData"></div>
-    <div class="ad-bloco destaque">
+    <div class="ad-bloco">
+      <div class="ad-bloco-tit">🖥️ Onlines</div>
+      <div id="adOnlines"></div>
+    </div>
+    <div class="ad-bloco">
       <div class="ad-bloco-tit">🎟️ Adesões SZ Club</div>
       <div id="adSZ"></div>
     </div>
-    <div class="ad-sec">
-      <div class="ad-bloco">
-        <div class="ad-bloco-tit">🖥️ Onlines</div>
-        <div id="adOnlines"></div>
-      </div>
-      <div class="ad-bloco">
-        <div class="ad-bloco-tit">🧴 Sprays</div>
-        <div id="adSprays"></div>
-      </div>
+    <div class="ad-bloco">
+      <div class="ad-bloco-tit">🧴 Sprays</div>
+      <div id="adSprays"></div>
     </div>
     <div class="ad-bloco">
-      <div class="ad-bloco-tit">🛍️ Sacos</div>
-      <div id="adSacos"></div>
+      <div class="ad-bloco-tit">🦶 Palmilhas</div>
+      <div id="adPalmilhas"></div>
     </div>
     <button class="ad-fechar" onclick="_fecharAdesoes()">FECHAR</button>
   </div>
@@ -7621,10 +7651,10 @@ async function mostrarResumoAdesoes(){
     const doOntem = dados.filter(function(d){ return _adesData(d.data) === ontemStr; });
     if(!doOntem.length) return;                            // ontem sem dados → não mostra
     document.getElementById('adData').textContent = ontem.toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'});
-    _adesRenderBloco('adSZ', _adesTop(doOntem,'szclub',3));
     _adesRenderBloco('adOnlines', _adesTop(doOntem,'onlines',3));
+    _adesRenderBloco('adSZ', _adesTop(doOntem,'szclub',3));
     _adesRenderBloco('adSprays', _adesTop(doOntem,'sprays',3));
-    _adesRenderBloco('adSacos', _adesTop(doOntem,'sacos',3));
+    _adesRenderBloco('adPalmilhas', _adesTop(doOntem,'palmilhas',3));
     localStorage.setItem('adesoesVisto', hojeKey);
     document.getElementById('adesoesOverlay').style.display = 'flex';
   }catch(e){}
