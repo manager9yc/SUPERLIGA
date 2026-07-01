@@ -3008,10 +3008,16 @@ function renderRanking(dados, isSemana) {
     }
   }
 
-  // Ranking por produto
+  // Ranking por produto — ordem: Onlines 1.º, SZClub 2.º, depois as restantes
   html += secDiv('🎯', 'Ranking por Produto');
   let d = 0.05;
-  categorias.forEach(cat => {
+  const _ordemRank = (function(){
+    const arr = categorias.slice();
+    const iSz = arr.findIndex(c=>c.key==='szclub');
+    if(iSz > -1){ const [sz] = arr.splice(iSz,1); const iOn = arr.findIndex(c=>c.key==='onlines'); arr.splice((iOn>-1?iOn:0)+1, 0, sz); }
+    return arr;
+  })();
+  _ordemRank.forEach(cat => {
     const sorted = [...dados].filter(v=>(v[cat.key]||0)>0).sort((a,b)=>b[cat.key]-a[cat.key]).slice(0,10);
     html += catBlock(cat.emoji, cat.label, sorted.length ? buildRows(sorted, cat.key) : emptyRows(), agora, d);
     d += 0.07;
@@ -7582,8 +7588,9 @@ document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarProg
 #adesoesCard .ad-bloco.destaque .ad-bloco-tit{color:#F5D87E;font-size:15px}
 #adesoesCard .ad-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.18);border-radius:8px;margin-bottom:5px}
 #adesoesCard .ad-bloco.destaque .ad-row{background:rgba(201,168,76,0.10);border-color:rgba(201,168,76,0.35)}
-#adesoesCard .ad-nome{font-size:13px;color:#fff;text-align:left}
-#adesoesCard .ad-val{font-family:'Bebas Neue',sans-serif;font-size:18px;color:#C9A84C;white-space:nowrap}
+#adesoesCard .ad-medal{width:22px;flex-shrink:0;text-align:center;font-size:14px;line-height:1}
+#adesoesCard .ad-nome{font-size:13px;color:#fff;text-align:left;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#adesoesCard .ad-val{font-family:'Bebas Neue',sans-serif;font-size:18px;color:#C9A84C;white-space:nowrap;flex-shrink:0;min-width:26px;text-align:right}
 #adesoesCard .ad-sec{display:flex;gap:10px}
 #adesoesCard .ad-sec .ad-bloco{flex:1;margin-bottom:0}
 #adesoesCard .ad-sec .ad-nome{font-size:11px}
@@ -7635,7 +7642,7 @@ function _adesRenderBloco(elId, top, sufixo){
   if(!top.length){ el.innerHTML = '<div class="ad-vazio">— sem registos —</div>'; return; }
   const medalhas = ['🥇','🥈','🥉'];
   el.innerHTML = top.map(function(t,i){
-    return '<div class="ad-row"><span class="ad-nome">' + (medalhas[i]||'') + ' ' + t.nome + '</span><span class="ad-val">' + t.v + (sufixo||'') + '</span></div>';
+    return '<div class="ad-row"><span class="ad-medal">' + (medalhas[i]||'') + '</span><span class="ad-nome">' + t.nome + '</span><span class="ad-val">' + t.v + (sufixo||'') + '</span></div>';
   }).join('');
 }
 async function mostrarResumoAdesoes(){
