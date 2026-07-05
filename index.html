@@ -7460,10 +7460,15 @@ function renderDesafiosMedalhas() {
 // ════════ JOGOS DE PROGNÓSTICO (configuração por data) ════════
 // Devolve o jogo ativo conforme a data, ou null se não houver nada a mostrar.
 // Liga (true) / desliga (false) o popup de prognóstico. Desligado até nova ordem.
-const PROG_ATIVO = false;
+const PROG_ATIVO = true;
 function _jogoAtivo(){
   if(!PROG_ATIVO) return null;
   const t = Date.now();
+  // JOGO — Portugal x Espanha. Abre JÁ; fecha e DESAPARECE segunda-feira 6 jul às 20:00.
+  if(t < new Date(2026,6,6,20,0,0).getTime()){
+    return { id:'esp-2026-07-06', adversario:'Espanha', flag:'🇪🇸',
+      fase:'aberto', quando:'segunda-feira', horaFecho:'20:00', resultado:null };
+  }
   // JOGO 1 — Portugal x Congo (terminado). Mostra o RESULTADO até 19 jun.
   if(t >= new Date(2026,5,17,18,0,0).getTime() && t < new Date(2026,5,19,0,0,0).getTime()){
     return { id:'', adversario:'Congo', flag:'🇨🇩', fase:'resultado',
@@ -7675,6 +7680,15 @@ async function _progSubmeter(){
   }
 }
 document.addEventListener('DOMContentLoaded', function(){ setTimeout(mostrarPrognosticoSeAtivo, 1800); });
+// Fecho automático: às 20:00 de segunda-feira (6 jul) o popup do prognóstico
+// desaparece, mesmo que esteja aberto no ecrã de alguém.
+(function(){
+  const fecho = new Date(2026,6,6,20,0,0).getTime();
+  const ms = fecho - Date.now();
+  if(ms > 0 && ms < 2147483647){
+    setTimeout(function(){ const ov = document.getElementById('progOverlay'); if(ov) ov.style.display = 'none'; }, ms);
+  }
+})();
 </script>
 
 <!-- ═══ POPUP DIÁRIO — RESUMO DE ONTEM (SZClub / Onlines / Sprays) ═══ -->
